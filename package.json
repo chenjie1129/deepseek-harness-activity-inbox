@@ -1,0 +1,110 @@
+{
+  "name": "@chenjie1129/dsh-activity-inbox-plugin",
+  "version": "0.1.0",
+  "description": "A deterministic, durable activity inbox for DeepSeek Harness",
+  "keywords": [
+    "deepseek-harness",
+    "dsh-plugin",
+    "activity-inbox",
+    "agent-observability",
+    "human-in-the-loop"
+  ],
+  "license": "MIT",
+  "author": "chenjie1129",
+  "type": "module",
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "main": "./lib/index.js",
+  "types": "./lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "types": "./lib/types/client/index.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "docs",
+    "cordis.patch.yml",
+    "README.md",
+    "README.zh-CN.md",
+    "CHANGELOG.md",
+    "SECURITY.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chenjie1129/deepseek-harness-activity-inbox.git"
+  },
+  "homepage": "https://github.com/chenjie1129/deepseek-harness-activity-inbox#readme",
+  "bugs": {
+    "url": "https://github.com/chenjie1129/deepseek-harness-activity-inbox/issues"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "check": "npm run test && npm run typecheck && npm run build && npm pack --dry-run",
+    "prepack": "npm run build",
+    "prepare": "npm run build"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-sidebar"
+      ],
+      "platform": "web"
+    }
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "^3.18.1"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": ">=4.0.1 <5",
+    "@deepseek-ai/dsh-client-connection": ">=0.1.1-rc.2 <0.2.0",
+    "@deepseek-ai/dsh-client-runtime": ">=0.1.1-rc.2 <0.2.0",
+    "@deepseek-ai/dsh-client-ui-sidebar": ">=0.1.1-rc.2 <0.2.0",
+    "@deepseek-ai/dsh-client-ui-slots": ">=0.1.1-rc.2 <0.2.0",
+    "@deepseek-ai/dsh-session": ">=0.1.1-rc.2 <0.2.0",
+    "@deepseek-ai/dsh-session-persistence": ">=0.1.1-rc.2 <0.2.0",
+    "react": ">=18.2.0 <19"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/cordis": { "optional": true },
+    "@deepseek-ai/dsh-client-connection": { "optional": true },
+    "@deepseek-ai/dsh-client-runtime": { "optional": true },
+    "@deepseek-ai/dsh-client-ui-sidebar": { "optional": true },
+    "@deepseek-ai/dsh-client-ui-slots": { "optional": true },
+    "@deepseek-ai/dsh-session": { "optional": true },
+    "@deepseek-ai/dsh-session-persistence": { "optional": true },
+    "react": { "optional": true }
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.1",
+    "@deepseek-ai/dsh-client-connection": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-client-runtime": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-sidebar": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-slots": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-session": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-session-persistence": "0.1.1-rc.2",
+    "@types/node": "^22.20.0",
+    "@types/react": "~18.3.1",
+    "esbuild": "^0.25.9",
+    "react": "^18.3.1",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
+  }
+}

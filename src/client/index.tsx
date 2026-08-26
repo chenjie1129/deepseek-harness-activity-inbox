@@ -1,0 +1,79 @@
+/** DeepSeek Harness browser half: root sidebar action and deterministic inbox panel. */
+
+import type { ClientContext, ISessions, SessionId } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
+import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
+import { ActivityInboxPanel } from './ActivityInboxPanel.js'
+import { createActivityInboxSource } from './source.js'
+import type { ActivityInboxFace } from './slots.js'
+import styles from './styles.css'
+
+export const inject = ['slots', 'connection', 'sessions']
+
+export function apply(ctx: ClientContext): void {
+  const connection = ctx.get('connection') as unknown as ConnectionHandle
+  // Host and Client packages intentionally share the `sessions` service name.
+  // This bundle resolves the browser service at runtime; the explicit cast
+  // keeps the combined Host+Client declaration program from choosing the Host face.
+  const sessions = ctx.get('sessions') as unknown as ISessions
+  const source = createActivityInboxSource(connection, (error) => {
+    console.error('[activity-inbox] refresh failed:', error)
+  })
+
+  ctx.effect(() => {
+    const element = document.createElement('style')
+    element.dataset.dshActivityInbox = 'v1'
+    element.textContent = styles
+    document.head.append(element)
+    return () => { element.remove() }
+  }, 'activity-inbox: styles')
+
+  ctx.on('connection/reset', () => {
+    source.reset()
+    source.refresh()
+  })
+
+  ctx.effect(() => {
+    const refreshVisible = (): void => { if (document.visibilityState === 'visible') source.refresh() }
+    const timer = window.setInterval(refreshVisible, 5_000)
+    window.addEventListener('focus', refreshVisible)
+    document.addEventListener('visibilitychange', refreshVisible)
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener('focus', refreshVisible)
+      document.removeEventListener('visibilitychange', refreshVisible)
+    }
+  }, 'activity-inbox: refresh on focus and interval')
+
+  ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register({
+    name: 'sidebar.footer.action',
+    id: 'activity-inbox',
+    inject: (): ActivityInboxFace => ({
+      hooks: { inbox: source },
+      onRefresh: () => { source.refresh() },
+      onMutate: mutation => source.mutate(mutation),
+      onOpenSession(sessionId) {
+        const id = sessionId as SessionId
+        const address = sessions.subagentAddress(id)
+        if (address !== undefined) {
+          sessions.openSubagent(address)
+          return
+        }
+        const snapshot = sessions.list.getSnapshot()
+        if (snapshot.ids.includes(id)) {
+          sessions.open(id)
+          return
+        }
+        const activity = source.getSnapshot().server?.activities.find(row => row.sessionId === sessionId)
+        const parent = activity?.parentSessionId as SessionId | undefined
+        if (parent !== undefined && snapshot.ids.includes(parent)) sessions.open(parent)
+      },
+    }),
+  }, ActivityInboxPanel))
+
+  source.refresh()
+}
+
+export { ActivityInboxPanel } from './ActivityInboxPanel.js'
+export { activityBadgeCount, deriveInboxRows, rowsForFilter } from './model.js'
+export { createActivityInboxSource } from './source.js'
