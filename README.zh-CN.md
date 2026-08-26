@@ -18,11 +18,11 @@
 
 要求：DeepSeek Harness `0.1.1-rc.2` 至 `<0.2.0`、Node.js 22.19+（或 24+）、Web Profile。
 
-请从 [v0.1.0 GitHub Release](https://github.com/chenjie1129/deepseek-harness-activity-inbox/releases/tag/v0.1.0) 下载 `chenjie1129-dsh-activity-inbox-plugin-0.1.0.tgz`。若希望从克隆的源码自行构建，请先在本仓库运行 `npm install`，再运行 `npm pack`。
+请从 [v0.1.1 GitHub Release](https://github.com/chenjie1129/deepseek-harness-activity-inbox/releases/tag/v0.1.1) 下载 `chenjie1129-dsh-activity-inbox-plugin-0.1.1.tgz`。若希望从克隆的源码自行构建，请先在本仓库运行 `npm install`，再运行 `npm pack`。
 
 ```bash
 cd /path/to/deepseek-harness
-npm run dsh -- plugin --profile web add /absolute/path/to/chenjie1129-dsh-activity-inbox-plugin-0.1.0.tgz
+npm run dsh -- plugin --profile web add /absolute/path/to/chenjie1129-dsh-activity-inbox-plugin-0.1.1.tgz
 npm run dsh -- --profile web
 ```
 

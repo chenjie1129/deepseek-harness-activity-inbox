@@ -24,7 +24,7 @@ Before a release, additionally verify the exact generated `.tgz`:
 3. install the tarball into a fresh, isolated `$DSH_HOME` web profile;
 4. inspect the composed configuration for the Host and client halves;
 5. boot Harness and exercise the UI in a real browser;
-6. confirm completion, failure, reconnect, page reload, review, snooze, follow, archive, and restore behavior;
+6. confirm completion, failure, reconnect, page reload, the explicit Close control, review, snooze, follow, archive, and restore behavior;
 7. audit the published GitHub tree and release asset against the tested commit and tarball checksum.
 
 Passing deterministic tests proves the inbox mechanism. It does not prove third-party provider availability, natural-language quality, or multi-user behavior.

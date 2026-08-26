@@ -84,8 +84,11 @@
 
 .activityInbox-header h2 { margin: 0; font-size: 15px; line-height: 22px; }
 .activityInbox-header p { margin: 2px 0 0; color: var(--dsw-alias-label-tertiary); font-size: 11px; line-height: 16px; }
+.activityInbox-headerTitle { min-width: 0; }
+.activityInbox-headerActions { flex: none; display: flex; align-items: center; gap: 6px; }
 
 .activityInbox-refresh,
+.activityInbox-close,
 .activityInbox-actions button,
 .activityInbox-filters button {
   border: 1px solid var(--dsw-alias-border-l2);
@@ -96,11 +99,16 @@
   cursor: pointer;
 }
 
-.activityInbox-refresh { flex: none; padding: 3px 8px; }
+.activityInbox-refresh,
+.activityInbox-close { flex: none; min-height: 28px; padding: 3px 8px; }
+.activityInbox-close { display: inline-flex; align-items: center; gap: 4px; color: var(--dsw-alias-label-primary); font-weight: 600; }
+.activityInbox-closeIcon { font-size: 16px; font-weight: 400; line-height: 16px; }
 .activityInbox-refresh:hover,
+.activityInbox-close:hover,
 .activityInbox-actions button:hover,
 .activityInbox-filters button:hover { background: var(--dsw-alias-interactive-bg-hover-solid); color: var(--dsw-alias-label-primary); }
 .activityInbox-refresh:disabled,
+.activityInbox-close:disabled,
 .activityInbox-actions button:disabled { cursor: default; opacity: .55; }
 
 .activityInbox-filters {
@@ -148,6 +156,8 @@
 @media (max-width: 560px) {
   .activityInbox-panel { left: 8px; bottom: 96px; width: calc(100vw - 16px); max-width: none; max-height: calc(100vh - 112px); }
   .activityInbox-header { padding: 12px; }
+  .activityInbox-refresh,
+  .activityInbox-close { min-height: 32px; }
   .activityInbox-body { padding: 8px 8px 12px; }
 }
 

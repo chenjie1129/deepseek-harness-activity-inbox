@@ -1,6 +1,6 @@
 {
   "name": "@chenjie1129/dsh-activity-inbox-plugin",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A deterministic, durable activity inbox for DeepSeek Harness",
   "keywords": [
     "deepseek-harness",

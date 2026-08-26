@@ -20,12 +20,16 @@ const css = {
   error: 'activityInbox-error',
   filters: 'activityInbox-filters',
   header: 'activityInbox-header',
+  headerActions: 'activityInbox-headerActions',
+  headerTitle: 'activityInbox-headerTitle',
   layer: 'activityInbox-layer',
   meta: 'activityInbox-meta',
   note: 'activityInbox-note',
   panel: 'activityInbox-panel',
   parent: 'activityInbox-parent',
   rail: 'activityInbox-rail',
+  close: 'activityInbox-close',
+  closeIcon: 'activityInbox-closeIcon',
   refresh: 'activityInbox-refresh',
   row: 'activityInbox-row',
   rowHead: 'activityInbox-rowHead',
@@ -176,13 +180,25 @@ export function ActivityInboxPanel({
       {open && (
         <section className={css.panel} aria-label="Activity inbox" data-activity-inbox-panel>
           <header className={css.header}>
-            <div>
+            <div className={css.headerTitle}>
               <h2>Activity</h2>
               <p>Exact task outcomes—no AI-generated summaries.</p>
             </div>
-            <button type="button" className={css.refresh} onClick={onRefresh} disabled={inbox.loading}>
-              {inbox.loading ? 'Refreshing…' : 'Refresh'}
-            </button>
+            <div className={css.headerActions}>
+              <button type="button" className={css.refresh} onClick={onRefresh} disabled={inbox.loading}>
+                {inbox.loading ? 'Refreshing…' : 'Refresh'}
+              </button>
+              <button
+                type="button"
+                className={css.close}
+                aria-label="Close activity inbox"
+                data-activity-inbox-close
+                onClick={() => { setOpen(false) }}
+              >
+                <span className={css.closeIcon} aria-hidden="true">×</span>
+                <span>Close</span>
+              </button>
+            </div>
           </header>
           <nav className={css.filters} aria-label="Activity filters">
             {FILTERS.map(item => {

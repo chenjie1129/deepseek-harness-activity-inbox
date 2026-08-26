@@ -18,11 +18,11 @@ The attention badge counts unresolved live waits plus unreviewed blocked or fail
 
 Requirements: DeepSeek Harness `0.1.1-rc.2` through the pre-`0.2` line, Node.js 22.19+ (or 24+), and the web profile.
 
-Download `chenjie1129-dsh-activity-inbox-plugin-0.1.0.tgz` from the [v0.1.0 GitHub release](https://github.com/chenjie1129/deepseek-harness-activity-inbox/releases/tag/v0.1.0). To build the same package from a clone instead, run `npm install` followed by `npm pack` in this repository.
+Download `chenjie1129-dsh-activity-inbox-plugin-0.1.1.tgz` from the [v0.1.1 GitHub release](https://github.com/chenjie1129/deepseek-harness-activity-inbox/releases/tag/v0.1.1). To build the same package from a clone instead, run `npm install` followed by `npm pack` in this repository.
 
 ```bash
 cd /path/to/deepseek-harness
-npm run dsh -- plugin --profile web add /absolute/path/to/chenjie1129-dsh-activity-inbox-plugin-0.1.0.tgz
+npm run dsh -- plugin --profile web add /absolute/path/to/chenjie1129-dsh-activity-inbox-plugin-0.1.1.tgz
 npm run dsh -- --profile web
 ```
 

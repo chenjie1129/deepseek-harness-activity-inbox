@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1 — 2026-08-26
+
+- Add an explicit, labeled Close control to the Activity panel after usability testing showed that the sidebar toggle and Escape shortcut were not discoverable.
+- Keep the Close control visible and comfortably tappable at narrow viewport sizes.
+
 ## 0.1.0 — 2026-08-26
 
 - Add a root sidebar Activity inbox with Needs action, Failed, Completed, Following, and Archived views.
