@@ -4,6 +4,7 @@ import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client
 import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
 import {
   ACTIVITY_INBOX_RPC_CHANNEL,
+  isActivityInboxSnapshot,
   type ActivityInboxSnapshot,
   type ActivityMutation,
 } from '../contracts.js'
@@ -20,21 +21,48 @@ export interface ActivityInboxSource extends HostObservable<ActivityInboxClientS
   mutate(mutation: ActivityMutation): Promise<{ ok: true } | { ok: false; message: string }>
 }
 
-function isSnapshot(value: unknown): value is ActivityInboxSnapshot {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
-  const input = value as Record<string, unknown>
-  return input.version === 1
-    && typeof input.revision === 'number'
-    && typeof input.backfillReady === 'boolean'
-    && typeof input.backfillFailures === 'number'
-    && Array.isArray(input.activities)
-    && Array.isArray(input.preferences)
+interface ActivityInboxRpcResult {
+  ok: boolean
+  value?: unknown
+  error?: { code: string; message: string }
+}
+
+export interface ActivityInboxTransport {
+  snapshot(): Promise<ActivityInboxRpcResult>
+  mutate(mutation: ActivityMutation): Promise<ActivityInboxRpcResult>
+}
+
+export interface ActivityInboxRemoteNamespace {
+  snapshot(): Promise<ActivityInboxRpcResult>
+  mutate(mutation: ActivityMutation): Promise<ActivityInboxRpcResult>
+}
+
+/** Preserve the legacy carrier for 0.1.1-rc.2 profiles. */
+export function createConnectionActivityInboxTransport(connection: ConnectionHandle): ActivityInboxTransport {
+  return {
+    snapshot: () => connection.rpc.call(ACTIVITY_INBOX_RPC_CHANNEL, 'snapshot', {}),
+    mutate: mutation => connection.rpc.call(ACTIVITY_INBOX_RPC_CHANNEL, 'mutate', mutation),
+  }
+}
+
+/** Use the supported Remote namespace on 0.1.2-alpha.1 and newer profiles. */
+export function createRemoteActivityInboxTransport(remote: ActivityInboxRemoteNamespace): ActivityInboxTransport {
+  return {
+    snapshot: () => remote.snapshot(),
+    mutate: mutation => remote.mutate(mutation),
+  }
+}
+
+function isTransport(value: ActivityInboxTransport | ConnectionHandle): value is ActivityInboxTransport {
+  return typeof Reflect.get(value as object, 'snapshot') === 'function'
+    && typeof Reflect.get(value as object, 'mutate') === 'function'
 }
 
 export function createActivityInboxSource(
-  connection: ConnectionHandle,
+  input: ActivityInboxTransport | ConnectionHandle,
   onError: (error: unknown) => void,
 ): ActivityInboxSource {
+  const transport = isTransport(input) ? input : createConnectionActivityInboxTransport(input)
   const listeners = new Set<() => void>()
   let snapshot: ActivityInboxClientSnapshot = { loading: false }
   let generation = 0
@@ -47,10 +75,10 @@ export function createActivityInboxSource(
 
   const read = async (readGeneration: number): Promise<void> => {
     try {
-      const result = await connection.rpc.call(ACTIVITY_INBOX_RPC_CHANNEL, 'snapshot', {})
+      const result = await transport.snapshot()
       if (readGeneration !== generation) return
-      if (!result.ok) throw new Error(`${result.error.code}: ${result.error.message}`)
-      if (!isSnapshot(result.value)) throw new Error('Host returned a malformed Activity Inbox snapshot.')
+      if (!result.ok) throw new Error(`${result.error?.code ?? 'internal'}: ${result.error?.message ?? 'Activity Inbox request failed.'}`)
+      if (!isActivityInboxSnapshot(result.value)) throw new Error('Host returned a malformed Activity Inbox snapshot.')
       publish({ server: result.value, loading: false })
     } catch (error) {
       if (readGeneration !== generation) return
@@ -88,9 +116,9 @@ export function createActivityInboxSource(
     },
     async mutate(mutation) {
       try {
-        const result = await connection.rpc.call(ACTIVITY_INBOX_RPC_CHANNEL, 'mutate', mutation)
-        if (!result.ok) return { ok: false, message: `${result.error.code}: ${result.error.message}` }
-        if (!isSnapshot(result.value)) return { ok: false, message: 'Host returned a malformed Activity Inbox snapshot.' }
+        const result = await transport.mutate(mutation)
+        if (!result.ok) return { ok: false, message: `${result.error?.code ?? 'internal'}: ${result.error?.message ?? 'Activity Inbox mutation failed.'}` }
+        if (!isActivityInboxSnapshot(result.value)) return { ok: false, message: 'Host returned a malformed Activity Inbox snapshot.' }
         publish({ server: result.value, loading: false })
         return { ok: true }
       } catch (error) {

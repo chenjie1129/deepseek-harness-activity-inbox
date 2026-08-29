@@ -10,7 +10,14 @@ import z from '@deepseek-ai/schemastery'
 import {
   ACTIVITY_INBOX_RPC_CHANNEL,
   isActivityMutation,
+  type ActivityInboxSnapshot,
+  type ActivityMutation,
 } from './contracts.js'
+import {
+  ACTIVITY_INBOX_HOST_CONTRIBUTION,
+  ACTIVITY_INBOX_REMOTE_NAMESPACE,
+  ACTIVITY_INBOX_REMOTE_SERVICE,
+} from './remote.js'
 import { ActivityInboxStore } from './store.js'
 
 export * from './contracts.js'
@@ -46,6 +53,67 @@ function payloadSize(value: unknown): number {
     return new TextEncoder().encode(JSON.stringify(value)).byteLength
   } catch {
     return Number.POSITIVE_INFINITY
+  }
+}
+
+interface TypertRegistryLike {
+  register(contribution: typeof ACTIVITY_INBOX_HOST_CONTRIBUTION): () => Promise<void>
+}
+
+interface ActivityInboxRemoteService {
+  typertRemote: {
+    readonly service: ActivityInboxRemoteService
+    readonly serviceKey: typeof ACTIVITY_INBOX_REMOTE_SERVICE
+    readonly namespace: typeof ACTIVITY_INBOX_REMOTE_NAMESPACE
+  }
+  snapshot(): Promise<ActivityInboxSnapshot>
+  mutate(mutation: ActivityMutation): Promise<ActivityInboxSnapshot>
+}
+
+interface RemoteInstallation {
+  dispose(): Promise<void>
+}
+
+function installRemote(
+  ctx: Context,
+  store: ActivityInboxStore,
+  initialized: Promise<void>,
+  maxPayloadBytes: number,
+): RemoteInstallation | undefined {
+  const typert = ctx.get('typert') as TypertRegistryLike | undefined
+  if (typeof typert?.register !== 'function') return undefined
+
+  const service = {
+    async snapshot(): Promise<ActivityInboxSnapshot> {
+      await initialized
+      return store.snapshot()
+    },
+    async mutate(mutation: ActivityMutation): Promise<ActivityInboxSnapshot> {
+      if (payloadSize(mutation) > maxPayloadBytes) throw new Error('Activity Inbox payload is too large.')
+      if (!isActivityMutation(mutation)) throw new Error('Malformed Activity Inbox mutation.')
+      await initialized
+      return store.mutate(mutation)
+    },
+  } as ActivityInboxRemoteService
+  service.typertRemote = Object.freeze({
+    service,
+    serviceKey: ACTIVITY_INBOX_REMOTE_SERVICE,
+    namespace: ACTIVITY_INBOX_REMOTE_NAMESPACE,
+  })
+
+  const removeService = ctx.provide(ACTIVITY_INBOX_REMOTE_SERVICE, service)
+  let removeContribution: (() => Promise<void>) | undefined
+  try {
+    removeContribution = typert.register(ACTIVITY_INBOX_HOST_CONTRIBUTION)
+  } catch (error) {
+    void removeService()
+    throw error
+  }
+  return {
+    async dispose(): Promise<void> {
+      await removeContribution?.()
+      await removeService()
+    },
   }
 }
 
@@ -100,7 +168,8 @@ export function apply(ctx: Context, config: Config = {}): void {
     if (!abort.signal.aborted) ctx.logger.error(`activity-inbox: initialization failed: ${String(error)}`)
   })
 
-  const removeRpc = ctx.connection.rpc.handle(ACTIVITY_INBOX_RPC_CHANNEL, async (endpoint, payload) => {
+  const remote = installRemote(ctx, store, initialized, maxPayloadBytes)
+  const removeRpc = remote === undefined ? ctx.connection.rpc.handle(ACTIVITY_INBOX_RPC_CHANNEL, async (endpoint, payload) => {
     if (payloadSize(payload) > maxPayloadBytes) {
       return { ok: false, error: { code: 'bad-request', message: 'Activity Inbox payload is too large.', details: { issues: [] } } }
     }
@@ -136,12 +205,13 @@ export function apply(ctx: Context, config: Config = {}): void {
         error: { code: 'internal', message: error instanceof Error ? error.message : String(error), details: {} },
       }
     }
-  }, { authority })
+  }, { authority }) : undefined
 
   ctx.effect(() => async () => {
     abort.abort()
+    await remote?.dispose()
+    await removeRpc?.()
     await backfill
     await store.close()
-    await removeRpc()
-  }, 'activity-inbox: dispose host index and RPC')
+  }, 'activity-inbox: dispose host index and transport')
 }

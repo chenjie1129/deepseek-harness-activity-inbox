@@ -3,20 +3,38 @@
 import type { ClientContext, ISessions, SessionId } from '@deepseek-ai/dsh-client-runtime/client'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
+import { ACTIVITY_INBOX_REMOTE_CONTRIBUTION } from '../remote.js'
 import { ActivityInboxPanel } from './ActivityInboxPanel.js'
-import { createActivityInboxSource } from './source.js'
+import {
+  createActivityInboxSource,
+  createRemoteActivityInboxTransport,
+  type ActivityInboxRemoteNamespace,
+} from './source.js'
 import type { ActivityInboxFace } from './slots.js'
 import styles from './styles.css'
 
 export const inject = ['slots', 'connection', 'sessions']
 
-export function apply(ctx: ClientContext): void {
+interface ActivityInboxRemoteClient {
+  $mount(contribution: typeof ACTIVITY_INBOX_REMOTE_CONTRIBUTION): Promise<() => Promise<void>>
+}
+
+export async function apply(ctx: ClientContext): Promise<(() => Promise<void>) | undefined> {
   const connection = ctx.get('connection') as unknown as ConnectionHandle
   // Host and Client packages intentionally share the `sessions` service name.
   // This bundle resolves the browser service at runtime; the explicit cast
   // keeps the combined Host+Client declaration program from choosing the Host face.
   const sessions = ctx.get('sessions') as unknown as ISessions
-  const source = createActivityInboxSource(connection, (error) => {
+  const remote = ctx.get('remote') as unknown as ActivityInboxRemoteClient | undefined
+  let disposeRemote: (() => Promise<void>) | undefined
+  let transport: ConnectionHandle | ReturnType<typeof createRemoteActivityInboxTransport> = connection
+  if (typeof remote?.$mount === 'function') {
+    disposeRemote = await remote.$mount(ACTIVITY_INBOX_REMOTE_CONTRIBUTION)
+    const namespace = ctx.get('remote.activityInbox') as ActivityInboxRemoteNamespace | undefined
+    if (namespace === undefined) throw new Error('Activity Inbox Remote namespace did not mount.')
+    transport = createRemoteActivityInboxTransport(namespace)
+  }
+  const source = createActivityInboxSource(transport, (error) => {
     console.error('[activity-inbox] refresh failed:', error)
   })
 
@@ -72,6 +90,7 @@ export function apply(ctx: ClientContext): void {
   }, ActivityInboxPanel))
 
   source.refresh()
+  return disposeRemote
 }
 
 export { ActivityInboxPanel } from './ActivityInboxPanel.js'

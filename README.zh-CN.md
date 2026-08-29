@@ -16,13 +16,13 @@
 
 ## 从打包文件安装
 
-要求：DeepSeek Harness `0.1.1-rc.2` 至 `<0.2.0`、Node.js 22.19+（或 24+）、Web Profile。
+要求：DeepSeek Harness `0.1.1-rc.2`，或从 `0.1.2-alpha.1` 到 `<0.2.0` 的版本；Node.js 22.19+（或 24+）；Web Profile。
 
-请从 [v0.1.1 GitHub Release](https://github.com/chenjie1129/deepseek-harness-activity-inbox/releases/tag/v0.1.1) 下载 `chenjie1129-dsh-activity-inbox-plugin-0.1.1.tgz`。若希望从克隆的源码自行构建，请先在本仓库运行 `npm install`，再运行 `npm pack`。
+请从 [v0.1.2 GitHub Release](https://github.com/chenjie1129/deepseek-harness-activity-inbox/releases/tag/v0.1.2) 下载 `chenjie1129-dsh-activity-inbox-plugin-0.1.2.tgz`。若希望从克隆的源码自行构建，请先在本仓库运行 `npm install`，再运行 `npm pack`。
 
 ```bash
 cd /path/to/deepseek-harness
-npm run dsh -- plugin --profile web add /absolute/path/to/chenjie1129-dsh-activity-inbox-plugin-0.1.1.tgz
+npm run dsh -- plugin --profile web add /absolute/path/to/chenjie1129-dsh-activity-inbox-plugin-0.1.2.tgz
 npm run dsh -- --profile web
 ```
 
@@ -32,7 +32,7 @@ npm run dsh -- --profile web
 $DSH_HOME/activity-inbox/state-v1.json
 ```
 
-默认 RPC 权限为 `loopback`。只有在明确配置 Harness Host 的可信远程来源后，才应改用 `trusted-host`。
+在 Harness `0.1.2-alpha.1` 中，插件使用官方支持的 Typert Remote API；在 `0.1.1-rc.2` 中，会自动回退到旧版 Connection RPC。旧版 RPC 的默认权限为 `loopback`；只有在明确配置旧版 Harness Host 的可信远程来源后，才应改用 `trusted-host`。
 
 ## v0.1 不包含
 

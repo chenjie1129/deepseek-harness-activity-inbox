@@ -1,4 +1,4 @@
-# Mount the Host event index and RPC. The package's dsh.client entry mounts the web inbox.
+# Mount the Host event index and version-appropriate transport. The package's dsh.client entry mounts the web inbox.
 - insert:
     - id: activity-inbox
       name: '@chenjie1129/dsh-activity-inbox-plugin'

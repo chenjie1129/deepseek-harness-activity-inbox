@@ -53,6 +53,51 @@ function safeInteger(value: unknown, min = 0): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= min
 }
 
+function optionalSafeInteger(value: unknown): boolean {
+  return value === undefined || safeInteger(value)
+}
+
+function isActivityRecord(value: unknown): value is ActivityRecord {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+  const input = value as Record<string, unknown>
+  return typeof input.sessionId === 'string'
+    && input.sessionId.length > 0
+    && safeInteger(input.seq)
+    && safeInteger(input.turn)
+    && safeInteger(input.occurredAt)
+    && (input.outcome === 'completed' || input.outcome === 'failed' || input.outcome === 'blocked')
+    && typeof input.reasonCode === 'string'
+    && typeof input.detail === 'string'
+    && optionalSafeInteger(input.createdAt)
+    && (input.parentSessionId === undefined || typeof input.parentSessionId === 'string')
+    && (input.origin === undefined || input.origin === 'subagent')
+}
+
+function isActivityPreference(value: unknown): value is ActivityPreference {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+  const input = value as Record<string, unknown>
+  if (typeof input.sessionId !== 'string' || input.sessionId.length === 0 || typeof input.followed !== 'boolean') return false
+  if (!optionalSafeInteger(input.reviewedThroughSeq) || !optionalSafeInteger(input.archivedThroughSeq)) return false
+  if (input.snooze === undefined) return true
+  if (typeof input.snooze !== 'object' || input.snooze === null || Array.isArray(input.snooze)) return false
+  const snooze = input.snooze as Record<string, unknown>
+  return safeInteger(snooze.until) && safeInteger(snooze.sourceSeq, -1)
+}
+
+/** Validate a snapshot received across either supported Harness transport. */
+export function isActivityInboxSnapshot(value: unknown): value is ActivityInboxSnapshot {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+  const input = value as Record<string, unknown>
+  return input.version === ACTIVITY_INBOX_STATE_VERSION
+    && safeInteger(input.revision)
+    && typeof input.backfillReady === 'boolean'
+    && safeInteger(input.backfillFailures)
+    && Array.isArray(input.activities)
+    && input.activities.every(isActivityRecord)
+    && Array.isArray(input.preferences)
+    && input.preferences.every(isActivityPreference)
+}
+
 /** Narrow untrusted RPC payloads before they reach persisted operator state. */
 export function isActivityMutation(value: unknown): value is ActivityMutation {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false

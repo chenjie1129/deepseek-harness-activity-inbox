@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.2 — 2026-08-29
+
+- Restore Activity Inbox data loading on DeepSeek Harness `0.1.2-alpha.1` by moving the plugin's Host-to-browser calls to the supported Typert Remote API.
+- Retain the legacy Connection RPC carrier as a fallback for `0.1.1-rc.2` profiles.
+- Validate Remote mutations and snapshots at the plugin boundary without adding an unpublished Harness package dependency.
+
 ## 0.1.1 — 2026-08-26
 
 - Add an explicit, labeled Close control to the Activity panel after usability testing showed that the sidebar toggle and Escape shortcut were not discoverable.

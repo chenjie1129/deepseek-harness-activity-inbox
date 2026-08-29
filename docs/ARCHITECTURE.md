@@ -6,9 +6,9 @@ Activity Inbox is a read-and-triage layer over existing Harness authority. It do
 
 ```text
 durable session logs ──backfill──┐
-live session/event ──────────────┼─> deterministic latest-outcome index ─> Host RPC
+live session/event ──────────────┼─> deterministic latest-outcome index ─> Host Remote
 live browser waits ───────────────────────────────────────────────────────> UI merge
-operator actions ────────────────> plugin preference file ───────────────> Host RPC
+operator actions ────────────────> plugin preference file ───────────────> Host Remote
 ```
 
 ## Host half
@@ -33,11 +33,13 @@ Historical facts are rebuilt from the configured `sessionPersistence` provider. 
 
 The client mounts in the additive root-scoped `sidebar.footer.action` list slot. It combines:
 
-- Host terminal facts and durable preferences from `/activity-inbox` RPC;
+- Host terminal facts and durable preferences from the `activityInbox` Typert Remote namespace on Harness `0.1.2-alpha.1`, with `/activity-inbox` Connection RPC retained for `0.1.1-rc.2`;
 - live `pendingInteraction` state from the standard `useSessions` feed;
 - session titles, running state, and parent navigation from that same feed.
 
 It refreshes on connection reset, browser focus/visibility, panel open, and a five-second interval. v0.1 intentionally uses this bounded pull model instead of adding another push protocol.
+
+The Remote contract is registered at runtime with strict mutation and snapshot validators. It does not import or bundle an unpublished alpha Harness package, so the packed plugin remains standalone and the Host remains the authority for persisted state.
 
 ## Re-arm semantics
 

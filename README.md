@@ -16,13 +16,13 @@ The attention badge counts unresolved live waits plus unreviewed blocked or fail
 
 ## Install from a packed artifact
 
-Requirements: DeepSeek Harness `0.1.1-rc.2` through the pre-`0.2` line, Node.js 22.19+ (or 24+), and the web profile.
+Requirements: DeepSeek Harness `0.1.1-rc.2` or `0.1.2-alpha.1` through the pre-`0.2` line, Node.js 22.19+ (or 24+), and the web profile.
 
-Download `chenjie1129-dsh-activity-inbox-plugin-0.1.1.tgz` from the [v0.1.1 GitHub release](https://github.com/chenjie1129/deepseek-harness-activity-inbox/releases/tag/v0.1.1). To build the same package from a clone instead, run `npm install` followed by `npm pack` in this repository.
+Download `chenjie1129-dsh-activity-inbox-plugin-0.1.2.tgz` from the [v0.1.2 GitHub release](https://github.com/chenjie1129/deepseek-harness-activity-inbox/releases/tag/v0.1.2). To build the same package from a clone instead, run `npm install` followed by `npm pack` in this repository.
 
 ```bash
 cd /path/to/deepseek-harness
-npm run dsh -- plugin --profile web add /absolute/path/to/chenjie1129-dsh-activity-inbox-plugin-0.1.1.tgz
+npm run dsh -- plugin --profile web add /absolute/path/to/chenjie1129-dsh-activity-inbox-plugin-0.1.2.tgz
 npm run dsh -- --profile web
 ```
 
@@ -32,7 +32,7 @@ The plugin stores only operator preferences at:
 $DSH_HOME/activity-inbox/state-v1.json
 ```
 
-Override the location or RPC authority in the composed Cordis entry when needed:
+Override the location or legacy RPC authority in the composed Cordis entry when needed:
 
 ```yaml
 - id: activity-inbox
@@ -43,7 +43,7 @@ Override the location or RPC authority in the composed Cordis entry when needed:
     backfillConcurrency: 4
 ```
 
-`loopback` is the safe default. Use `trusted-host` only when the Harness Host's trusted-origin policy is deliberately configured for remote browser access.
+Harness `0.1.2-alpha.1` uses the supported Typert Remote API. The plugin automatically retains its bounded Connection RPC carrier for `0.1.1-rc.2`; `loopback` is the safe default for that fallback. Use `trusted-host` only when the legacy Harness Host's trusted-origin policy is deliberately configured for remote browser access.
 
 ## What v0.1 does not claim
 
