@@ -13,6 +13,7 @@ A standalone DeepSeek Harness plugin that turns exact agent outcomes into a calm
 - **Evidence, not summaries** — every terminal row comes from the durable Harness session log and displays its source event sequence. No model call generates the inbox.
 - **Ambient Pet** — the sidebar companion reflects the same deterministic activity facts with running, waiting, ready, blocked, failed, idle, and offline states.
 - **Desktop-ready Presence protocol** — the Host owns live state and exports a versioned, browser-safe `./presence` contract with restart-aware revisions.
+- **Authenticated local Presence** — macOS publishes revisions over an owner-only Unix socket and keeps its bearer token in Keychain rather than a plaintext file.
 
 The attention badge counts unresolved live waits plus unreviewed blocked or failed outcomes. Ordinary completions remain available for catch-up without making the badge noisy.
 
@@ -28,13 +29,25 @@ npm run dsh -- plugin --profile web add /absolute/path/to/chenjie1129-dsh-activi
 npm run dsh -- --profile web
 ```
 
-The plugin stores only operator preferences at:
+The plugin stores only operator preferences on disk at:
 
 ```text
 $DSH_HOME/activity-inbox/state-v1.json
 ```
 
-Override the location or legacy RPC authority in the composed Cordis entry when needed:
+On macOS, the local Presence bridge is enabled by default at:
+
+```text
+$DSH_HOME/activity-inbox/presence-v1.sock
+```
+
+Its directory and socket modes are `0700` and `0600`. The 256-bit transport
+token is stored in macOS Keychain under service
+`com.deepseek-harness.activity-inbox.presence`; the account is derived from the
+absolute socket path. No plaintext token file is created.
+
+Override the paths, disable the desktop bridge, or change the legacy RPC
+authority in the composed Cordis entry when needed:
 
 ```yaml
 - id: activity-inbox
@@ -43,9 +56,19 @@ Override the location or legacy RPC authority in the composed Cordis entry when 
     statePath: /absolute/path/to/activity-inbox.json
     authority: loopback
     backfillConcurrency: 4
+    presenceSocketEnabled: true
+    presenceSocketPath: /absolute/path/to/presence-v1.sock
+    presenceAuthTimeoutMs: 5000
+    presenceMaxClients: 8
 ```
 
 Harness `0.1.2-alpha.1` uses the supported Typert Remote API. The plugin automatically retains its bounded Connection RPC carrier for `0.1.1-rc.2`; `loopback` is the safe default for that fallback. Use `trusted-host` only when the legacy Harness Host's trusted-origin policy is deliberately configured for remote browser access.
+
+Desktop clients use newline-delimited JSON. They first send
+`presence/auth`, then `presence/subscribe`; the Host responds with
+`presence/snapshot` or `presence/unchanged` and pushes later revisions. The
+Node-only `./presence/host` export provides the Keychain descriptor and socket
+helpers for local integrations.
 
 ## What v0.1 does not claim
 

@@ -11,11 +11,17 @@ export interface PresenceCursor {
   revision: number
 }
 
-export type PresenceClientMessage = {
-  type: 'presence/subscribe'
-  version: 1
-  cursor?: PresenceCursor
-}
+export type PresenceClientMessage =
+  | {
+      type: 'presence/auth'
+      version: 1
+      token: string
+    }
+  | {
+      type: 'presence/subscribe'
+      version: 1
+      cursor?: PresenceCursor
+    }
 
 export type PresenceServerMessage =
   | { type: 'presence/snapshot'; version: 1; snapshot: ActivityPresenceSnapshot }
@@ -38,9 +44,17 @@ export function isPresenceCursor(value: unknown): value is PresenceCursor {
 export function isPresenceClientMessage(value: unknown): value is PresenceClientMessage {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
   const input = value as Record<string, unknown>
-  return input.type === 'presence/subscribe'
-    && input.version === ACTIVITY_PRESENCE_PROTOCOL_VERSION
-    && (input.cursor === undefined || isPresenceCursor(input.cursor))
+  if (input.version !== ACTIVITY_PRESENCE_PROTOCOL_VERSION) return false
+  switch (input.type) {
+    case 'presence/auth':
+      return typeof input.token === 'string'
+        && input.token.length >= 32
+        && input.token.length <= 256
+    case 'presence/subscribe':
+      return input.cursor === undefined || isPresenceCursor(input.cursor)
+    default:
+      return false
+  }
 }
 
 export function isPresenceServerMessage(value: unknown): value is PresenceServerMessage {

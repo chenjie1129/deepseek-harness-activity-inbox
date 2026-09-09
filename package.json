@@ -30,6 +30,10 @@
       "types": "./lib/types/presence/index.d.ts",
       "default": "./lib/presence.js"
     },
+    "./presence/host": {
+      "types": "./lib/types/presence/host.d.ts",
+      "default": "./lib/presence-host.js"
+    },
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json"
   },

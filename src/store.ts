@@ -34,6 +34,8 @@ interface PendingState extends LiveState {
   kind: PendingInteractionKind
 }
 
+export type PresenceListener = (snapshot: ActivityPresenceSnapshot) => void
+
 function boundedDetail(value: string): string {
   return value.length <= MAX_DETAIL_LENGTH ? value : `${value.slice(0, MAX_DETAIL_LENGTH - 1)}…`
 }
@@ -201,6 +203,7 @@ export class ActivityInboxStore {
   private readonly relevantWatermarks = new Map<string, number>()
   private readonly running = new Map<string, LiveState>()
   private readonly pending = new Map<string, Map<string, PendingState>>()
+  private readonly presenceListeners = new Set<PresenceListener>()
   private mutationQueue: Promise<unknown> = Promise.resolve()
 
   constructor(
@@ -233,6 +236,22 @@ export class ActivityInboxStore {
 
   private touchPresence(): void {
     this.presenceRevision += 1
+    if (this.presenceListeners.size === 0) return
+    const snapshot = this.presence()
+    for (const listener of [...this.presenceListeners]) {
+      try {
+        listener(snapshot)
+      } catch {
+        // Presence consumers are isolated from the authoritative event fold.
+      }
+    }
+  }
+
+  subscribePresence(listener: PresenceListener): () => void {
+    this.presenceListeners.add(listener)
+    return () => {
+      this.presenceListeners.delete(listener)
+    }
   }
 
   noteSession(header: SessionHeader): void {
@@ -506,6 +525,7 @@ export class ActivityInboxStore {
   }
 
   async close(): Promise<void> {
+    this.presenceListeners.clear()
     await this.mutationQueue
   }
 }

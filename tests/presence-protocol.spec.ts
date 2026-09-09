@@ -21,7 +21,17 @@ function snapshot(instanceId: string, revision: number): ActivityPresenceSnapsho
 }
 
 describe('Presence transport protocol', () => {
-  it('accepts only bounded versioned subscribe messages', () => {
+  it('accepts only bounded versioned auth and subscribe messages', () => {
+    expect(isPresenceClientMessage({
+      type: 'presence/auth',
+      version: 1,
+      token: 'x'.repeat(43),
+    })).toBe(true)
+    expect(isPresenceClientMessage({
+      type: 'presence/auth',
+      version: 1,
+      token: 'short',
+    })).toBe(false)
     expect(isPresenceClientMessage({
       type: 'presence/subscribe',
       version: 1,

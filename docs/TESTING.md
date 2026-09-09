@@ -27,6 +27,11 @@ The test suite covers:
 - historical backfill exclusion from transient running and waiting state;
 - Presence protocol validation, stale-revision rejection, and Host-restart
   acceptance.
+- Store-to-transport Presence revision notifications and unsubscribe behavior;
+- macOS Keychain lookup, stdin-only token creation, create-race recovery, and
+  malformed credential rejection;
+- Unix socket directory and endpoint permissions, authenticated subscribe,
+  revision push, frame bounds, active-server protection, and owned cleanup.
 
 Before a release, additionally verify the exact generated `.tgz`:
 
@@ -38,5 +43,8 @@ Before a release, additionally verify the exact generated `.tgz`:
 6. confirm historical counts load through Typert Remote, mutations persist across a full Host restart, and no Activity-specific browser error is emitted;
 7. confirm completion, failure, reconnect, page reload, the explicit Close control, review, snooze, follow, archive, and restore behavior;
 8. audit the published GitHub tree and release asset against the tested commit and tarball checksum.
+9. on macOS, create/read/delete a disposable Keychain item without printing its
+   value, then authenticate to the packed plugin's Unix socket and observe a
+   valid Presence response.
 
 Passing deterministic tests proves the inbox mechanism. It does not prove third-party provider availability, natural-language quality, or multi-user behavior.

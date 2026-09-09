@@ -17,5 +17,20 @@ Please report suspected vulnerabilities privately through GitHub's security-advi
 - Preference writes replace the state file atomically and create temporary files with owner-only permissions.
 - Error text displayed in the UI is bounded. It comes from Harness's structured turn failure, not from an AI-generated interpretation.
 - Unknown extension-defined turn outcomes are omitted rather than guessed into a security-sensitive category.
+- On macOS, the desktop Presence transport uses a Unix socket inside a `0700`
+  directory and applies mode `0600` to the socket before publishing its path.
+- Socket clients must authenticate before subscribing. Tokens are random
+  256-bit values stored through macOS Security Framework. The helper receives
+  the token over stdin, not command arguments or plaintext files, and verifies
+  the stored value by reading it back before opening the socket.
+- Socket request frames, authentication time, client count, and buffered output
+  are bounded. Authentication comparisons use fixed-length digests with
+  `timingSafeEqual`.
+- The stable endpoint targets a random per-instance socket in the same private
+  directory. Startup never replaces an active listener, and shutdown removes
+  the stable path only while it still targets this Host.
 
-This plugin does not add authentication to Harness. Keep the Host on its supported loopback/trusted-origin deployment boundary and follow the Harness security guidance.
+The local Presence token authenticates only the Unix socket and does not add
+authentication to Harness itself. Keep the Host on its supported
+loopback/trusted-origin deployment boundary and follow the Harness security
+guidance.

@@ -9,7 +9,7 @@ durable session logs ──backfill──┐
 live session/event ──────────────┼─> Host activity + Presence index ─> Host Remote
 approval/request lifecycle ──────┤                │
 operator actions ────────────────> preference file│
-                                                  └─> versioned desktop protocol
+                                                  └─> authenticated Unix socket
 ```
 
 ## Host half
@@ -41,7 +41,15 @@ It refreshes on connection reset, browser focus/visibility, panel open, a five-s
 
 The Remote contract is registered at runtime with strict mutation and snapshot validators. It does not import or bundle an unpublished alpha Harness package, so the packed plugin remains standalone and the Host remains the authority for persisted state.
 
-The browser-safe `./presence` export contains the shared Pet projector and the versioned subscribe/snapshot/unchanged protocol. D1 defines and tests the reconnect contract; D2 will bind it to a permission-restricted local transport.
+The browser-safe `./presence` export contains the shared Pet projector and the
+versioned auth/subscribe/snapshot/unchanged protocol. The Node-only
+`./presence/host` export binds it to an NDJSON Unix domain socket. On macOS the
+Host stores a random bearer token in Keychain, locks the containing directory
+to `0700`, locks the socket to `0600`, and requires authentication before
+subscription. Presence revisions are pushed from the Store rather than polled.
+The stable endpoint points to a random per-instance socket in the same private
+directory. Startup refuses to replace an active listener, while shutdown
+removes the stable path only if it still targets the current Host.
 
 ## Re-arm semantics
 

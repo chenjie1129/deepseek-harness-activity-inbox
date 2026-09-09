@@ -20,9 +20,15 @@ import {
   ACTIVITY_INBOX_REMOTE_SERVICE,
 } from './remote.js'
 import { observeApprovalPresence } from './presence/approval.js'
+import {
+  DEFAULT_PRESENCE_KEYCHAIN_SERVICE,
+  MacOSKeychainCredentialProvider,
+} from './presence/keychain.js'
+import { createPresenceSocketBridge } from './presence/socket.js'
 import { ActivityInboxStore } from './store.js'
 
 export * from './contracts.js'
+export * from './presence/host.js'
 export * from './presence/projector.js'
 export * from './presence/protocol.js'
 export { ActivityInboxStore } from './store.js'
@@ -35,6 +41,12 @@ export interface Config {
   authority?: 'loopback' | 'trusted-host'
   maxPayloadBytes?: number
   backfillConcurrency?: number
+  presenceSocketEnabled?: boolean
+  presenceSocketPath?: string
+  presenceKeychainService?: string
+  presenceKeychainAccount?: string
+  presenceAuthTimeoutMs?: number
+  presenceMaxClients?: number
 }
 
 export const Config: z<Config> = z.object({
@@ -42,14 +54,27 @@ export const Config: z<Config> = z.object({
   authority: z.union(['loopback', 'trusted-host'] as const).default('loopback'),
   maxPayloadBytes: z.natural().min(1_024).default(16 * 1_024),
   backfillConcurrency: z.natural().min(1).max(16).default(4),
+  presenceSocketEnabled: z.boolean().default(process.platform === 'darwin'),
+  presenceSocketPath: z.string(),
+  presenceKeychainService: z.string(),
+  presenceKeychainAccount: z.string(),
+  presenceAuthTimeoutMs: z.natural().min(100).max(60_000).default(5_000),
+  presenceMaxClients: z.natural().min(1).max(64).default(8),
 })
 
-function defaultStatePath(): string {
+function defaultDataRoot(): string {
   const configured = process.env.DSH_HOME
-  const root = configured !== undefined && configured.trim().length > 0
+  return configured !== undefined && configured.trim().length > 0
     ? resolve(configured)
     : join(homedir(), '.dsh')
-  return join(root, 'activity-inbox', 'state-v1.json')
+}
+
+function defaultStatePath(): string {
+  return join(defaultDataRoot(), 'activity-inbox', 'state-v1.json')
+}
+
+function defaultPresenceSocketPath(): string {
+  return join(defaultDataRoot(), 'activity-inbox', 'presence-v1.sock')
 }
 
 function payloadSize(value: unknown): number {
@@ -126,6 +151,10 @@ export function apply(ctx: Context, config: Config = {}): void {
   const authority = config.authority ?? 'loopback'
   const maxPayloadBytes = config.maxPayloadBytes ?? 16 * 1_024
   const concurrency = config.backfillConcurrency ?? 4
+  const presenceSocketEnabled = config.presenceSocketEnabled ?? process.platform === 'darwin'
+  const presenceSocketPath = config.presenceSocketPath === undefined
+    ? defaultPresenceSocketPath()
+    : resolve(config.presenceSocketPath)
   const store = new ActivityInboxStore(statePath)
   const abort = new AbortController()
   const initialized = store.initialize()
@@ -173,6 +202,29 @@ export function apply(ctx: Context, config: Config = {}): void {
     if (!abort.signal.aborted) ctx.logger.error(`activity-inbox: initialization failed: ${String(error)}`)
   })
 
+  const presenceBridge = presenceSocketEnabled
+    ? initialized.then(() => createPresenceSocketBridge({
+        socketPath: presenceSocketPath,
+        source: store,
+        credentials: new MacOSKeychainCredentialProvider({
+          socketPath: presenceSocketPath,
+          ...config.presenceKeychainService === undefined
+            ? { service: DEFAULT_PRESENCE_KEYCHAIN_SERVICE }
+            : { service: config.presenceKeychainService },
+          ...config.presenceKeychainAccount === undefined
+            ? {}
+            : { account: config.presenceKeychainAccount },
+        }),
+        authTimeoutMs: config.presenceAuthTimeoutMs ?? 5_000,
+        maxClients: config.presenceMaxClients ?? 8,
+        maxInboundFrameBytes: maxPayloadBytes,
+      }))
+      .catch(error => {
+        ctx.logger.error(`activity-inbox: Presence socket failed: ${String(error)}`)
+        return undefined
+      })
+    : Promise.resolve(undefined)
+
   const remote = installRemote(ctx, store, initialized, maxPayloadBytes)
   const removeRpc = remote === undefined ? ctx.connection.rpc.handle(ACTIVITY_INBOX_RPC_CHANNEL, async (endpoint, payload) => {
     if (payloadSize(payload) > maxPayloadBytes) {
@@ -214,6 +266,7 @@ export function apply(ctx: Context, config: Config = {}): void {
 
   ctx.effect(() => async () => {
     abort.abort()
+    await (await presenceBridge)?.close()
     await remote?.dispose()
     await removeRpc?.()
     await backfill

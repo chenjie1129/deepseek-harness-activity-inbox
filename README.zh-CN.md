@@ -13,6 +13,7 @@
 - **证据优先**：每条终态活动来自 Harness 的持久 Session 日志，并显示来源事件序号；插件不会调用模型生成摘要。
 - **环境式 Pet**：侧边栏伙伴复用同一套确定性活动事实，展示运行、等待、待审阅、阻塞、失败、空闲和离线状态。
 - **桌面端就绪的 Presence 协议**：Host 统一维护实时状态，并导出带实例与 revision 语义的浏览器安全 `./presence` 契约。
+- **本地认证 Presence**：macOS 通过仅当前用户可访问的 Unix Socket 推送 revision，Bearer Token 只保存在 Keychain，不创建明文凭据文件。
 
 红色角标只统计尚未处理的实时等待，以及未读的 blocked / failed 结果。普通完成项保留在收件箱中，但不会制造角标噪音。
 
@@ -28,11 +29,38 @@ npm run dsh -- plugin --profile web add /absolute/path/to/chenjie1129-dsh-activi
 npm run dsh -- --profile web
 ```
 
-插件只把操作者偏好写入：
+插件在文件系统中只写入操作者偏好：
 
 ```text
 $DSH_HOME/activity-inbox/state-v1.json
 ```
+
+macOS 默认启用本地 Presence Bridge：
+
+```text
+$DSH_HOME/activity-inbox/presence-v1.sock
+```
+
+目录权限为 `0700`，Socket 权限为 `0600`。256-bit 传输 Token 保存在
+macOS Keychain 的 `com.deepseek-harness.activity-inbox.presence` service
+中，account 由 Socket 绝对路径稳定派生，不会生成明文 Token 文件。
+
+可在 Cordis 配置中覆盖路径或关闭桌面 Bridge：
+
+```yaml
+- id: activity-inbox
+  name: '@chenjie1129/dsh-activity-inbox-plugin'
+  config:
+    presenceSocketEnabled: true
+    presenceSocketPath: /absolute/path/to/presence-v1.sock
+    presenceAuthTimeoutMs: 5000
+    presenceMaxClients: 8
+```
+
+桌面客户端使用 NDJSON，必须先发送 `presence/auth`，再发送
+`presence/subscribe`。Host 返回 `presence/snapshot` 或
+`presence/unchanged`，并主动推送后续 revision。Node 本地集成可使用
+`./presence/host` 导出的 Keychain 描述符和 Socket 工具。
 
 在 Harness `0.1.2-alpha.1` 中，插件使用官方支持的 Typert Remote API；在 `0.1.1-rc.2` 中，会自动回退到旧版 Connection RPC。旧版 RPC 的默认权限为 `loopback`；只有在明确配置旧版 Harness Host 的可信远程来源后，才应改用 `trusted-host`。
 

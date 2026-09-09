@@ -12,6 +12,12 @@
 - Track running turns, unresolved user questions, plan reviews, and approval
   waits without requiring the Inbox browser surface to be open.
 - Add Host-instance and revision semantics for reconnect synchronization.
+- Add a permission-restricted Unix socket that authenticates desktop clients
+  before streaming Presence revisions.
+- Store the socket bearer token in macOS Keychain without a plaintext
+  credential file or token-bearing process argument.
+- Bound authentication time, request frames, client count, and buffered socket
+  output; protect active endpoints and inode-safe cleanup.
 - Document the presentation-layer boundary, priority policy, and future split
   criteria.
 

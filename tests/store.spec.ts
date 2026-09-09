@@ -174,6 +174,22 @@ describe('ActivityInboxStore event fold', () => {
     ])
     expect(store.snapshot().presence?.activities).toEqual([])
   })
+
+  it('notifies Presence subscribers only for revisions after subscription', async () => {
+    const store = await storeFixture()
+    const revisions: number[] = []
+    const unsubscribe = store.subscribePresence(snapshot => {
+      revisions.push(snapshot.revision)
+    })
+
+    store.noteSession(header('task-subscriber'))
+    store.noteSession(header('task-subscriber'))
+    store.beginPending('task-subscriber', 'a:approval', 'approval')
+    unsubscribe()
+    store.endPending('task-subscriber', 'a:approval')
+
+    expect(revisions).toEqual([1, 2])
+  })
 })
 
 describe('ActivityInboxStore preferences', () => {

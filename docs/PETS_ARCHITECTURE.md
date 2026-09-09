@@ -3,7 +3,7 @@
 ## Status
 
 - Decision: approved for implementation in the Activity Inbox plugin.
-- Scope: PR1 through PR3 of the Pets presentation roadmap.
+- Scope: PR1 through PR3 plus desktop foundation D1 and D2.
 - Product boundary: a deterministic ambient view of Harness activity, not an
   autonomous companion, game, or AI-generated summary.
 
@@ -207,10 +207,11 @@ be added later with an explicit versioned Host contract.
 ## Desktop Protocol Boundary
 
 The browser-safe `./presence` package exports the snapshot, Pet projector, and
-transport-neutral reconnect protocol. D1 defines messages but does not open a
-socket:
+transport-neutral reconnect protocol. D2 binds that contract to owner-only
+NDJSON over a Unix domain socket:
 
 ```text
+presence/auth(token)
 presence/subscribe(cursor?)
 presence/snapshot(snapshot)
 presence/unchanged(cursor)
@@ -219,8 +220,28 @@ presence/error(code, message)
 
 Snapshots carry an `instanceId` and monotonic revision. A client rejects an
 older revision from the same Host instance, but accepts a lower revision when
-the instance id changes after Host restart. D2 will bind this protocol to a
-permission-restricted Unix domain socket.
+the instance id changes after Host restart.
+
+The default macOS endpoint is:
+
+```text
+$DSH_HOME/activity-inbox/presence-v1.sock
+```
+
+The containing directory is forced to mode `0700` and the socket to `0600`.
+The bearer token is a 256-bit random value stored in macOS Keychain under
+service `com.deepseek-harness.activity-inbox.presence`; it is never written to
+the plugin state file or passed in process arguments. The account is a stable
+hash of the absolute socket path, allowing a desktop client to derive the same
+Keychain lookup without a plaintext discovery file.
+
+Each connection must authenticate before subscribing. Requests are bounded
+NDJSON frames, authentication has a deadline, client count and write buffering
+are capped, and comparisons use fixed-length SHA-256 digests with
+`timingSafeEqual`. The stable endpoint is a symlink to a random per-instance
+socket in the same private directory. Startup probes the endpoint before
+removing only a confirmed stale target; shutdown removes the stable path only
+when it still points to the current instance.
 
 ## Failure Isolation
 
@@ -269,6 +290,17 @@ permission-restricted Unix domain socket.
 - Publish a versioned `PresenceSnapshot` with evidence and revision.
 - Export a browser-safe protocol and reconnect policy.
 - Keep the local socket transport out of scope until D2.
+
+### D2: Local authenticated transport
+
+- Publish Host Presence over a permission-restricted Unix domain socket.
+- Store and reuse the transport token in macOS Keychain with no plaintext
+  credential file.
+- Require authentication before subscription and push every new Presence
+  revision to authenticated subscribers.
+- Bound frames, connection count, authentication time, and buffered output.
+- Reject active-socket replacement and clean up only the current Host's socket.
+- Export Node-only transport utilities from `./presence/host`.
 
 ## Verification Contract
 

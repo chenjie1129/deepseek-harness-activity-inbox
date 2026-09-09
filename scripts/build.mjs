@@ -51,6 +51,16 @@ await build({
 })
 
 await build({
+  entryPoints: ['src/presence/host.ts'],
+  outfile: 'lib/presence-host.js',
+  bundle: true,
+  format: 'esm',
+  platform: 'node',
+  target: ['node22'],
+  sourcemap: true,
+})
+
+await build({
   entryPoints: ['src/client/index.tsx'],
   outfile: 'lib/client.js',
   bundle: true,
