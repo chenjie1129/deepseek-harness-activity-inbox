@@ -32,6 +32,208 @@
 .activityInbox-trigger[data-active] { background: var(--dsw-alias-interactive-bg-hover); }
 .activityInbox-triggerLabel { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+.activityPet-surface {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.activityPet-avatar {
+  position: relative;
+  flex: none;
+  display: block;
+  width: 28px;
+  height: 30px;
+  transform-origin: 50% 100%;
+}
+
+.activityPet-head {
+  position: absolute;
+  left: 3px;
+  top: 5px;
+  width: 22px;
+  height: 18px;
+  border: 1.5px solid currentColor;
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-base);
+  box-sizing: border-box;
+}
+
+.activityPet-ear {
+  position: absolute;
+  top: 1px;
+  width: 5px;
+  height: 8px;
+  border: 1.5px solid currentColor;
+  border-radius: 5px 5px 2px 2px;
+  background: var(--dsw-alias-bg-base);
+  box-sizing: border-box;
+}
+
+.activityPet-earLeft { left: 5px; transform: rotate(-14deg); }
+.activityPet-earRight { right: 5px; transform: rotate(14deg); }
+
+.activityPet-eye {
+  position: absolute;
+  top: 6px;
+  width: 3px;
+  height: 4px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+.activityPet-eyeLeft { left: 5px; }
+.activityPet-eyeRight { right: 5px; }
+
+.activityPet-mouth {
+  position: absolute;
+  left: 8px;
+  bottom: 3px;
+  width: 4px;
+  height: 1px;
+  border-radius: 1px;
+  background: currentColor;
+}
+
+.activityPet-body {
+  position: absolute;
+  left: 8px;
+  bottom: 0;
+  width: 12px;
+  height: 8px;
+  border: 1.5px solid currentColor;
+  border-radius: 4px 4px 3px 3px;
+  background: var(--dsw-alias-bg-base);
+  box-sizing: border-box;
+}
+
+.activityPet-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.activityPet-label {
+  max-width: 160px;
+  overflow: hidden;
+  color: var(--dsw-alias-label-primary);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activityPet-detail {
+  max-width: 160px;
+  overflow: hidden;
+  color: var(--dsw-alias-label-caption);
+  font-size: 9px;
+  line-height: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activityPet-surface[data-pet-state='needs-input'],
+.activityPet-surface[data-pet-state='blocked'] { color: var(--dsw-alias-state-warn-label); }
+.activityPet-surface[data-pet-state='failed'] { color: var(--dsw-alias-state-error-primary); }
+.activityPet-surface[data-pet-state='ready'] { color: var(--dsw-alias-state-success-primary); }
+.activityPet-surface[data-pet-state='offline'] { color: var(--dsw-alias-label-caption); opacity: .65; }
+.activityPet-surface[data-pet-state='failed'] .activityPet-mouth,
+.activityPet-surface[data-pet-state='blocked'] .activityPet-mouth {
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  background: transparent;
+  border-top: 1.5px solid currentColor;
+}
+
+.activityPet-surface[data-compact] .activityPet-copy { display: none; }
+
+.activityPet-surface:not([data-paused])[data-pet-track='idle'] .activityPet-avatar {
+  animation: activityPet-breathe 2.8s ease-in-out infinite;
+}
+.activityPet-surface:not([data-paused])[data-pet-track='running'] .activityPet-avatar {
+  animation: activityPet-work .7s ease-in-out infinite;
+}
+.activityPet-surface:not([data-paused])[data-pet-track='waiting'] .activityPet-head {
+  animation: activityPet-wait 1.4s ease-in-out infinite;
+}
+.activityPet-surface:not([data-paused])[data-pet-track='review'] .activityPet-avatar {
+  animation: activityPet-ready 1.1s ease-in-out infinite;
+}
+.activityPet-surface:not([data-paused])[data-pet-track='blocked'] .activityPet-avatar {
+  animation: activityPet-blocked .8s ease-in-out infinite;
+}
+.activityPet-surface:not([data-paused])[data-pet-track='failed'] .activityPet-head {
+  transform: translateY(3px) rotate(-5deg);
+}
+
+.activityPet-settings {
+  flex: none;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--dsw-alias-border-l2);
+  color: var(--dsw-alias-label-caption);
+  font-size: 11px;
+  line-height: 18px;
+}
+
+.activityPet-settingsLabel { margin-right: auto; font-weight: 600; }
+.activityPet-lifecycle {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--dsw-alias-button-ghost-active-fill);
+  color: var(--dsw-alias-label-caption);
+  font-size: 10px;
+  line-height: 18px;
+}
+.activityPet-lifecycle[data-phase='running'] { color: var(--dsw-alias-state-success-primary, #24795c); }
+.activityPet-lifecycle[data-phase='error'] { color: var(--dsw-alias-state-error-primary, #b93c48); }
+.activityPet-settings button {
+  min-height: 26px;
+  padding: 2px 7px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-secondary);
+  font: 11px/18px inherit;
+  cursor: pointer;
+}
+.activityPet-settings button:hover { background: var(--dsw-alias-interactive-bg-hover-solid); }
+.activityPet-settings button:disabled { cursor: default; opacity: .55; }
+
+@keyframes activityPet-breathe {
+  0%, 100% { transform: translateY(0) scaleY(1); }
+  50% { transform: translateY(1px) scaleY(.97); }
+}
+
+@keyframes activityPet-work {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-2px) rotate(2deg); }
+}
+
+@keyframes activityPet-wait {
+  0%, 100% { transform: rotate(-4deg); }
+  50% { transform: rotate(4deg); }
+}
+
+@keyframes activityPet-ready {
+  0%, 70%, 100% { transform: translateY(0); }
+  35% { transform: translateY(-4px); }
+}
+
+@keyframes activityPet-blocked {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-2px); }
+  75% { transform: translateX(2px); }
+}
+
 .activityInbox-badge {
   display: inline-flex;
   align-items: center;
@@ -51,6 +253,7 @@
 .activityInbox-rail { width: 36px; height: 36px; margin: 0; }
 .activityInbox-rail .activityInbox-trigger { justify-content: center; width: 36px; height: 36px; padding: 0; border-radius: 50%; overflow: visible; }
 .activityInbox-rail .activityInbox-badge { position: absolute; top: -5px; right: -7px; min-width: 17px; height: 17px; padding: 0 4px; font-size: 10px; }
+.activityInbox-rail .activityPet-avatar { width: 26px; height: 28px; }
 
 .activityInbox-panel {
   position: fixed;
@@ -163,4 +366,5 @@
 
 @media (prefers-reduced-motion: reduce) {
   .activityInbox-panel, .activityInbox-trigger { scroll-behavior: auto; }
+  .activityPet-avatar, .activityPet-head { animation: none !important; }
 }

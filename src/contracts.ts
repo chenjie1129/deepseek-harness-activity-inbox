@@ -2,8 +2,35 @@
 
 export const ACTIVITY_INBOX_RPC_CHANNEL = '/activity-inbox'
 export const ACTIVITY_INBOX_STATE_VERSION = 1
+export const ACTIVITY_PRESENCE_PROTOCOL_VERSION = 1
+export const DESKTOP_PET_LIFECYCLE_VERSION = 1
 
 export type ActivityOutcome = 'completed' | 'failed' | 'blocked'
+export type PendingInteractionKind = 'approval' | 'plan-review' | 'question'
+export type AgentPresenceState = 'idle' | 'running' | 'needs-input' | 'blocked' | 'failed' | 'ready'
+export type DesktopPetLifecyclePhase =
+  | 'unsupported'
+  | 'unavailable'
+  | 'stopped'
+  | 'starting'
+  | 'running'
+  | 'stopping'
+  | 'error'
+
+export interface DesktopPetLifecycleSnapshot {
+  version: 1
+  revision: number
+  phase: DesktopPetLifecyclePhase
+  available: boolean
+  managed: boolean
+  autoStart: boolean
+  message?: string
+}
+
+export type DesktopPetLifecycleCommand =
+  | { action: 'start' }
+  | { action: 'stop' }
+  | { action: 'restart' }
 
 /** Latest terminal activity for one Harness session. */
 export interface ActivityRecord {
@@ -38,6 +65,41 @@ export interface ActivityInboxSnapshot {
   backfillFailures: number
   activities: ActivityRecord[]
   preferences: ActivityPreference[]
+  /** Host-authoritative runtime projection for Inbox, Pet, and future desktop clients. */
+  presence?: ActivityPresenceSnapshot
+  /** Host-owned lifecycle state for the optional native desktop renderer. */
+  desktopPet?: DesktopPetLifecycleSnapshot
+}
+
+export interface PresenceActivity {
+  sessionId: string
+  state: AgentPresenceState
+  detail: string
+  updatedAt: number
+  /** Durable evidence sequence, or -1 for an ephemeral approval request. */
+  sourceSeq: number
+  followed: boolean
+  reviewed: boolean
+  archived: boolean
+  running: boolean
+  terminalOutcome?: ActivityOutcome
+  snoozedUntil?: number
+  pendingKind?: PendingInteractionKind
+  reasonCode?: string
+  createdAt?: number
+  parentSessionId?: string
+  origin?: 'subagent'
+}
+
+/** One versioned Host projection shared by every activity presentation. */
+export interface ActivityPresenceSnapshot {
+  version: 1
+  instanceId: string
+  revision: number
+  generatedAt: number
+  ready: boolean
+  backfillFailures: number
+  activities: PresenceActivity[]
 }
 
 export type ActivityMutation =
@@ -84,6 +146,95 @@ function isActivityPreference(value: unknown): value is ActivityPreference {
   return safeInteger(snooze.until) && safeInteger(snooze.sourceSeq, -1)
 }
 
+function isPresenceActivity(value: unknown): value is PresenceActivity {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+  const input = value as Record<string, unknown>
+  return typeof input.sessionId === 'string'
+    && input.sessionId.length > 0
+    && input.sessionId.length <= 256
+    && (
+      input.state === 'idle'
+      || input.state === 'running'
+      || input.state === 'needs-input'
+      || input.state === 'blocked'
+      || input.state === 'failed'
+      || input.state === 'ready'
+    )
+    && typeof input.detail === 'string'
+    && input.detail.length <= 500
+    && safeInteger(input.updatedAt)
+    && safeInteger(input.sourceSeq, -1)
+    && typeof input.followed === 'boolean'
+    && typeof input.reviewed === 'boolean'
+    && typeof input.archived === 'boolean'
+    && typeof input.running === 'boolean'
+    && (
+      input.terminalOutcome === undefined
+      || input.terminalOutcome === 'completed'
+      || input.terminalOutcome === 'failed'
+      || input.terminalOutcome === 'blocked'
+    )
+    && (input.snoozedUntil === undefined || safeInteger(input.snoozedUntil))
+    && (
+      input.pendingKind === undefined
+      || input.pendingKind === 'approval'
+      || input.pendingKind === 'plan-review'
+      || input.pendingKind === 'question'
+    )
+    && (input.reasonCode === undefined || (
+      typeof input.reasonCode === 'string' && input.reasonCode.length <= 128
+    ))
+    && optionalSafeInteger(input.createdAt)
+    && (input.parentSessionId === undefined || typeof input.parentSessionId === 'string')
+    && (input.origin === undefined || input.origin === 'subagent')
+}
+
+export function isActivityPresenceSnapshot(value: unknown): value is ActivityPresenceSnapshot {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+  const input = value as Record<string, unknown>
+  return input.version === ACTIVITY_PRESENCE_PROTOCOL_VERSION
+    && typeof input.instanceId === 'string'
+    && input.instanceId.length > 0
+    && input.instanceId.length <= 128
+    && safeInteger(input.revision)
+    && safeInteger(input.generatedAt)
+    && typeof input.ready === 'boolean'
+    && safeInteger(input.backfillFailures)
+    && Array.isArray(input.activities)
+    && input.activities.length <= 10_000
+    && input.activities.every(isPresenceActivity)
+    && new Set(input.activities.map(activity => (activity as PresenceActivity).sessionId)).size === input.activities.length
+}
+
+export function isDesktopPetLifecycleCommand(value: unknown): value is DesktopPetLifecycleCommand {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+  const action = (value as Record<string, unknown>).action
+  return action === 'start' || action === 'stop' || action === 'restart'
+}
+
+export function isDesktopPetLifecycleSnapshot(value: unknown): value is DesktopPetLifecycleSnapshot {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+  const input = value as Record<string, unknown>
+  return input.version === DESKTOP_PET_LIFECYCLE_VERSION
+    && safeInteger(input.revision)
+    && (
+      input.phase === 'unsupported'
+      || input.phase === 'unavailable'
+      || input.phase === 'stopped'
+      || input.phase === 'starting'
+      || input.phase === 'running'
+      || input.phase === 'stopping'
+      || input.phase === 'error'
+    )
+    && typeof input.available === 'boolean'
+    && typeof input.managed === 'boolean'
+    && typeof input.autoStart === 'boolean'
+    && (input.message === undefined || (
+      typeof input.message === 'string'
+      && input.message.length <= 240
+    ))
+}
+
 /** Validate a snapshot received across either supported Harness transport. */
 export function isActivityInboxSnapshot(value: unknown): value is ActivityInboxSnapshot {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
@@ -96,6 +247,8 @@ export function isActivityInboxSnapshot(value: unknown): value is ActivityInboxS
     && input.activities.every(isActivityRecord)
     && Array.isArray(input.preferences)
     && input.preferences.every(isActivityPreference)
+    && (input.presence === undefined || isActivityPresenceSnapshot(input.presence))
+    && (input.desktopPet === undefined || isDesktopPetLifecycleSnapshot(input.desktopPet))
 }
 
 /** Narrow untrusted RPC payloads before they reach persisted operator state. */

@@ -1,15 +1,24 @@
 import { useEffect, useMemo, useState } from 'react'
+import type { SessionListState } from '@deepseek-ai/dsh-client-runtime/client'
 import type { InjectFace, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type { ActivityMutation } from '../contracts.js'
 import {
   activityBadgeCount,
-  deriveInboxRows,
+  projectInboxRows,
   rowsForFilter,
   type InboxCategory,
   type InboxFilter,
   type InboxRow,
 } from './model.js'
+import { deriveAgentActivities } from './domain/activity.js'
+import { PetSurface } from './pet/PetSurface.js'
+import { derivePetProjection, shouldPausePetAnimation } from './pet/model.js'
+import {
+  readPetSettings,
+  writePetSettings,
+  type PetSettings,
+} from './pet/settings.js'
 import type { ActivityInboxFace } from './slots.js'
 
 const css = {
@@ -34,6 +43,8 @@ const css = {
   row: 'activityInbox-row',
   rowHead: 'activityInbox-rowHead',
   rows: 'activityInbox-rows',
+  settingsLabel: 'activityPet-settingsLabel',
+  lifecycle: 'activityPet-lifecycle',
   status: 'activityInbox-status',
   time: 'activityInbox-time',
   trigger: 'activityInbox-trigger',
@@ -58,6 +69,21 @@ const CATEGORY_LABEL: Record<InboxCategory, string> = {
   completed: 'Completed',
   running: 'Running',
   idle: 'Idle',
+}
+
+function browserStorage(): Storage | undefined {
+  try {
+    return window.localStorage
+  } catch {
+    return undefined
+  }
+}
+
+function livePresenceSignal(sessions: SessionListState): string {
+  return sessions.ids.map(id => {
+    const summary = sessions.byId[id]
+    return `${String(id)}:${summary?.running === true ? 1 : 0}:${summary?.pendingInteraction ?? ''}:${summary?.completed === true ? 1 : 0}`
+  }).join('|')
 }
 
 function relativeTime(timestamp: number, now: number): string {
@@ -134,18 +160,59 @@ function RowActions({ row, busy, mutate, open }: {
 }
 
 export function ActivityInboxPanel({
-  wide, useSessions, useInbox, onRefresh, onMutate, onOpenSession,
+  wide, useSessions, useInbox, onRefresh, onMutate, onPetControl, onOpenSession,
 }: ActivityInboxPanelProps) {
   const inbox = useInbox(value => value)
   const sessions = useSessions(value => value)
   const [open, setOpen] = useState(false)
   const [filter, setFilter] = useState<InboxFilter>('needs-action')
   const [busy, setBusy] = useState<ReadonlySet<string>>(new Set())
+  const [petLifecycleBusy, setPetLifecycleBusy] = useState(false)
   const [actionError, setActionError] = useState<string>()
   const [clock, setClock] = useState(() => Date.now())
-  const rows = useMemo(() => deriveInboxRows(inbox.server, sessions, clock), [inbox.server, sessions, clock])
+  const [documentHidden, setDocumentHidden] = useState(() => document.visibilityState !== 'visible')
+  const [reducedMotion, setReducedMotion] = useState(() => (
+    typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  ))
+  const [petSettings, setPetSettings] = useState<PetSettings>(() => readPetSettings(browserStorage()))
+  const activities = useMemo(
+    () => deriveAgentActivities(inbox.server, sessions, clock),
+    [inbox.server, sessions, clock],
+  )
+  const rows = useMemo(() => projectInboxRows(activities), [activities])
+  const pet = useMemo(
+    () => derivePetProjection(
+      inbox.server?.presence,
+      sessions.current === undefined ? undefined : String(sessions.current),
+      clock,
+    ),
+    [clock, inbox.server?.presence, sessions.current],
+  )
   const visible = useMemo(() => rowsForFilter(rows, filter), [rows, filter])
   const badge = activityBadgeCount(rows)
+  const presenceSignal = useMemo(() => livePresenceSignal(sessions), [sessions])
+
+  useEffect(() => {
+    writePetSettings(browserStorage(), petSettings)
+  }, [petSettings])
+
+  useEffect(() => {
+    onRefresh()
+  }, [onRefresh, presenceSignal])
+
+  useEffect(() => {
+    const media = typeof window.matchMedia === 'function'
+      ? window.matchMedia('(prefers-reduced-motion: reduce)')
+      : undefined
+    const updateVisibility = (): void => { setDocumentHidden(document.visibilityState !== 'visible') }
+    const updateMotion = (): void => { setReducedMotion(media?.matches === true) }
+    document.addEventListener('visibilitychange', updateVisibility)
+    media?.addEventListener('change', updateMotion)
+    return () => {
+      document.removeEventListener('visibilitychange', updateVisibility)
+      media?.removeEventListener('change', updateMotion)
+    }
+  }, [])
 
   useEffect(() => {
     if (!open) return
@@ -172,6 +239,19 @@ export function ActivityInboxPanel({
         next.delete(mutation.sessionId)
         return next
       })
+    })
+  }
+
+  const desktopPet = inbox.server?.desktopPet
+  const controlDesktopPet = (): void => {
+    if (desktopPet === undefined || petLifecycleBusy) return
+    const action = desktopPet.phase === 'running' ? 'stop' : 'start'
+    setPetLifecycleBusy(true)
+    setActionError(undefined)
+    void onPetControl({ action }).then((result) => {
+      if (!result.ok) setActionError(result.message)
+    }).finally(() => {
+      setPetLifecycleBusy(false)
     })
   }
 
@@ -214,6 +294,57 @@ export function ActivityInboxPanel({
               )
             })}
           </nav>
+          <div className="activityPet-settings" aria-label="Pet settings">
+            <span className={css.settingsLabel}>Companion</span>
+            {desktopPet !== undefined && (
+              <>
+                <span
+                  className={css.lifecycle}
+                  data-phase={desktopPet.phase}
+                  title={desktopPet.message}
+                >
+                  {desktopPet.phase}
+                </span>
+                <button
+                  type="button"
+                  disabled={
+                    petLifecycleBusy
+                    || !desktopPet.available
+                    || desktopPet.phase === 'starting'
+                    || desktopPet.phase === 'stopping'
+                  }
+                  onClick={controlDesktopPet}
+                >
+                  {petLifecycleBusy || desktopPet.phase === 'starting'
+                    ? 'Starting…'
+                    : desktopPet.phase === 'stopping'
+                      ? 'Stopping…'
+                      : desktopPet.phase === 'running'
+                        ? 'Stop desktop'
+                        : 'Start desktop'}
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              aria-pressed={!petSettings.enabled}
+              onClick={() => {
+                setPetSettings(current => ({ ...current, enabled: !current.enabled }))
+              }}
+            >
+              {petSettings.enabled ? 'Hide pet' : 'Show pet'}
+            </button>
+            <button
+              type="button"
+              aria-pressed={!petSettings.animationsEnabled}
+              disabled={!petSettings.enabled}
+              onClick={() => {
+                setPetSettings(current => ({ ...current, animationsEnabled: !current.animationsEnabled }))
+              }}
+            >
+              {petSettings.animationsEnabled ? 'Pause motion' : 'Animate'}
+            </button>
+          </div>
           <div className={css.body}>
             {inbox.error !== undefined && <p className={css.error} role="alert">{inbox.error}</p>}
             {actionError !== undefined && <p className={css.error} role="alert">{actionError}</p>}
@@ -264,15 +395,21 @@ export function ActivityInboxPanel({
       <button
         type="button"
         className={css.trigger}
-        aria-label={badge === 0 ? 'Open activity inbox' : `Open activity inbox, ${badge} item${badge === 1 ? '' : 's'} need attention`}
+        aria-label={`${petSettings.enabled ? `${pet.label}. ` : ''}${badge === 0 ? 'Open activity inbox' : `Open activity inbox, ${badge} item${badge === 1 ? '' : 's'} need attention`}`}
         aria-expanded={open}
         data-activity-inbox-trigger
         data-activity-badge={badge}
         data-active={badge > 0 || undefined}
         onClick={() => { setOpen(value => !value) }}
       >
-        <BellIcon />
-        {wide && <span className={css.triggerLabel}>Activity</span>}
+        {petSettings.enabled
+          ? <PetSurface
+              projection={pet}
+              animationsPaused={shouldPausePetAnimation(documentHidden, reducedMotion || !petSettings.animationsEnabled)}
+              compact={!wide}
+            />
+          : <BellIcon />}
+        {wide && !petSettings.enabled && <span className={css.triggerLabel}>Activity</span>}
         {badge > 0 && <span className={css.badge}>{badge > 99 ? '99+' : badge}</span>}
       </button>
     </div>

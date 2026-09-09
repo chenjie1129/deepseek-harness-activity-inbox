@@ -3,8 +3,10 @@
 import {
   isActivityInboxSnapshot,
   isActivityMutation,
+  isDesktopPetLifecycleCommand,
   type ActivityInboxSnapshot,
   type ActivityMutation,
+  type DesktopPetLifecycleCommand,
 } from './contracts.js'
 
 export const ACTIVITY_INBOX_REMOTE_PACKAGE = '@chenjie1129/dsh-activity-inbox-plugin'
@@ -25,6 +27,10 @@ function schema<T>(name: string, guard: (value: unknown) => value is T): Runtime
 }
 
 const mutationSchema = schema<ActivityMutation>('Activity Inbox mutation', isActivityMutation)
+const desktopPetCommandSchema = schema<DesktopPetLifecycleCommand>(
+  'Desktop Pet lifecycle command',
+  isDesktopPetLifecycleCommand,
+)
 const snapshotSchema = schema<ActivityInboxSnapshot>('Activity Inbox snapshot', isActivityInboxSnapshot)
 
 export const ACTIVITY_INBOX_REMOTE_DESCRIPTORS = [{
@@ -53,6 +59,27 @@ export const ACTIVITY_INBOX_REMOTE_DESCRIPTORS = [{
       mode: 'strict' as const,
       typeSymbol: `${ACTIVITY_INBOX_REMOTE_PACKAGE}/contracts#ActivityMutation`,
       schema: mutationSchema,
+    },
+  }],
+  result: {
+    mode: 'strict' as const,
+    typeSymbol: `${ACTIVITY_INBOX_REMOTE_PACKAGE}/contracts#ActivityInboxSnapshot`,
+    schema: snapshotSchema,
+  },
+}, {
+  id: `${ACTIVITY_INBOX_REMOTE_PACKAGE}#${ACTIVITY_INBOX_REMOTE_NAMESPACE}/petControl`,
+  service: ACTIVITY_INBOX_REMOTE_SERVICE,
+  namespace: ACTIVITY_INBOX_REMOTE_NAMESPACE,
+  method: 'petControl',
+  invocation: { kind: 'direct' as const },
+  parameters: [{
+    name: 'command',
+    wire: 'command',
+    source: 'json' as const,
+    codec: {
+      mode: 'strict' as const,
+      typeSymbol: `${ACTIVITY_INBOX_REMOTE_PACKAGE}/contracts#DesktopPetLifecycleCommand`,
+      schema: desktopPetCommandSchema,
     },
   }],
   result: {
