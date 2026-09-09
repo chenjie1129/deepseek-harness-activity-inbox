@@ -6,9 +6,10 @@ Activity Inbox is a read-and-triage layer over existing Harness authority. It do
 
 ```text
 durable session logs ──backfill──┐
-live session/event ──────────────┼─> deterministic latest-outcome index ─> Host Remote
-live browser waits ───────────────────────────────────────────────────────> UI merge
-operator actions ────────────────> plugin preference file ───────────────> Host Remote
+live session/event ──────────────┼─> Host activity + Presence index ─> Host Remote
+approval/request lifecycle ──────┤                │
+operator actions ────────────────> preference file│
+                                                  └─> versioned desktop protocol
 ```
 
 ## Host half
@@ -25,7 +26,7 @@ The event classifier is intentionally closed:
 | `aborted` | omitted; cancellation is not a failure |
 | unknown plugin extension | omitted until explicitly classified |
 
-Only the latest terminal activity per session is kept. A subsequent `turn/start` clears the prior terminal row while work is in progress.
+Only the latest terminal activity per session is kept. A subsequent `turn/start` clears the prior terminal row while work is in progress. The same Host store tracks running turns, unresolved `ask_user_question` calls, and approval waits. Historical backfill never creates transient running or waiting state.
 
 Historical facts are rebuilt from the configured `sessionPersistence` provider. They are not copied into a second plugin database. The plugin-owned JSON file contains only follow/review/snooze/archive preferences and a monotonic revision.
 
@@ -33,13 +34,14 @@ Historical facts are rebuilt from the configured `sessionPersistence` provider. 
 
 The client mounts in the additive root-scoped `sidebar.footer.action` list slot. It combines:
 
-- Host terminal facts and durable preferences from the `activityInbox` Typert Remote namespace on Harness `0.1.2-alpha.1`, with `/activity-inbox` Connection RPC retained for `0.1.1-rc.2`;
-- live `pendingInteraction` state from the standard `useSessions` feed;
-- session titles, running state, and parent navigation from that same feed.
+- Host terminal facts, durable preferences, and the authoritative Presence projection from the `activityInbox` Typert Remote namespace on Harness `0.1.2-alpha.1`, with `/activity-inbox` Connection RPC retained for `0.1.1-rc.2`;
+- session titles, current selection, and parent navigation from the standard `useSessions` feed.
 
-It refreshes on connection reset, browser focus/visibility, panel open, and a five-second interval. v0.1 intentionally uses this bounded pull model instead of adding another push protocol.
+It refreshes on connection reset, browser focus/visibility, panel open, a five-second interval, and relevant live session status edges. Browser state triggers refreshes but does not independently classify Presence.
 
 The Remote contract is registered at runtime with strict mutation and snapshot validators. It does not import or bundle an unpublished alpha Harness package, so the packed plugin remains standalone and the Host remains the authority for persisted state.
+
+The browser-safe `./presence` export contains the shared Pet projector and the versioned subscribe/snapshot/unchanged protocol. D1 defines and tests the reconnect contract; D2 will bind it to a permission-restricted local transport.
 
 ## Re-arm semantics
 

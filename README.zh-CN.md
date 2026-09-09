@@ -11,6 +11,8 @@
 - **Reviewed / Snooze / Archive**：单操作者的持久状态；新回合结束后，旧的已读、稍后提醒或归档状态不会压住新活动。
 - **子 Agent 路由**：能直接打开子 Agent 时打开子 Agent，否则打开其父任务。
 - **证据优先**：每条终态活动来自 Harness 的持久 Session 日志，并显示来源事件序号；插件不会调用模型生成摘要。
+- **环境式 Pet**：侧边栏伙伴复用同一套确定性活动事实，展示运行、等待、待审阅、阻塞、失败、空闲和离线状态。
+- **桌面端就绪的 Presence 协议**：Host 统一维护实时状态，并导出带实例与 revision 语义的浏览器安全 `./presence` 契约。
 
 红色角标只统计尚未处理的实时等待，以及未读的 blocked / failed 结果。普通完成项保留在收件箱中，但不会制造角标噪音。
 
@@ -42,4 +44,4 @@ $DSH_HOME/activity-inbox/state-v1.json
 - 暂不支持跳转到单个事件；当前 Harness UI 提供的是任务级导航。
 - 若持久化后端无法读取某个 Session，不能声称该 Session 已完成历史回填；面板会显示失败数量。
 
-更多信息见 [架构说明](docs/ARCHITECTURE.md)、[测试说明](docs/TESTING.md) 和 [安全说明](SECURITY.md)。
+更多信息见 [架构说明](docs/ARCHITECTURE.md)、[Pets 架构说明](docs/PETS_ARCHITECTURE.md)、[测试说明](docs/TESTING.md) 和 [安全说明](SECURITY.md)。

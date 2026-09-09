@@ -32,7 +32,7 @@ function header(id: string, parent?: string): SessionHeader {
   }
 }
 
-function event(seq: number, type: 'turn/start' | 'turn/end', data: unknown): SessionEvent {
+function event(seq: number, type: SessionEvent['type'], data: unknown): SessionEvent {
   return { type, seq, time: 1_000 + seq, data } as SessionEvent
 }
 
@@ -74,6 +74,106 @@ describe('ActivityInboxStore event fold', () => {
       sessionId: 'child-1', seq: 9, outcome: 'blocked', parentSessionId: 'parent-1', origin: 'subagent',
     })
   })
+
+  it('projects the complete live Presence lifecycle from Host events', async () => {
+    const store = await storeFixture()
+    const meta = header('task-live')
+    store.markBackfillComplete(0)
+    store.ingestEvent(meta, event(0, 'turn/start', { turn: 1 }))
+    expect(store.snapshot().presence?.activities[0]).toMatchObject({
+      sessionId: 'task-live', state: 'running', running: true, sourceSeq: 0,
+    })
+
+    store.ingestEvent(meta, event(1, 'tool/call', {
+      turn: 1,
+      step: 1,
+      callId: 'question-1',
+      name: 'ask_user_question',
+      arguments: JSON.stringify({
+        questions: [{
+          id: 'plan',
+          question: 'Approve?',
+          detail: '# Plan',
+          options: [{ label: 'Approve' }],
+          intent: { kind: 'plan-review', approve: 'Approve' },
+        }],
+      }),
+    }))
+    expect(store.snapshot().presence?.activities[0]).toMatchObject({
+      state: 'needs-input',
+      pendingKind: 'plan-review',
+      detail: 'Waiting for your plan review',
+      sourceSeq: 1,
+    })
+
+    store.ingestEvent(meta, event(2, 'tool/result', {
+      turn: 1,
+      step: 1,
+      message: { source: { kind: 'tool', callId: 'question-1' } },
+    }))
+    expect(store.snapshot().presence?.activities[0]).toMatchObject({
+      state: 'running', running: true,
+    })
+
+    store.ingestEvent(meta, event(3, 'turn/end', {
+      turn: 1,
+      reason: { kind: 'completed' },
+    }))
+    expect(store.snapshot().presence?.activities[0]).toMatchObject({
+      state: 'ready',
+      terminalOutcome: 'completed',
+      running: false,
+      sourceSeq: 3,
+    })
+  })
+
+  it('tracks approval waits without taking ownership and clears them by identity', async () => {
+    const store = await storeFixture()
+    store.beginPending('task-approval', 'a:call-1', 'approval', 2_000)
+    expect(store.snapshot().presence?.activities[0]).toMatchObject({
+      state: 'needs-input',
+      pendingKind: 'approval',
+      sourceSeq: -1,
+    })
+
+    const revision = store.snapshot().presence?.revision
+    store.beginPending('task-approval', 'a:call-1', 'approval', 3_000)
+    expect(store.snapshot().presence?.revision).toBe(revision)
+    store.endPending('task-approval', 'a:call-1')
+    expect(store.snapshot().presence?.activities).toEqual([])
+  })
+
+  it('uses the running-turn watermark to re-arm approval after an older snooze', async () => {
+    const store = await storeFixture()
+    const meta = header('task-rearmed')
+    store.ingestEvent(meta, event(2, 'turn/end', { turn: 1, reason: { kind: 'failed' } }))
+    await store.mutate({
+      action: 'snooze',
+      sessionId: 'task-rearmed',
+      sourceSeq: 2,
+      until: Date.now() + 60_000,
+    })
+
+    store.ingestEvent(meta, event(3, 'turn/start', { turn: 2 }))
+    store.beginPending('task-rearmed', 'a:call-2', 'approval', 2_000)
+    expect(store.snapshot().presence?.activities[0]).toMatchObject({
+      state: 'needs-input',
+      sourceSeq: 3,
+    })
+    expect(store.snapshot().presence?.activities[0]?.snoozedUntil).toBeUndefined()
+  })
+
+  it('does not resurrect an unfinished historical turn as live running work', async () => {
+    const store = await storeFixture()
+    store.ingest(header('stale-task'), [
+      event(0, 'turn/start', { turn: 1 }),
+      event(1, 'tool/call', {
+        turn: 1, step: 1, callId: 'old-question',
+        name: 'ask_user_question', arguments: '{"questions":[]}',
+      }),
+    ])
+    expect(store.snapshot().presence?.activities).toEqual([])
+  })
 })
 
 describe('ActivityInboxStore preferences', () => {
@@ -93,6 +193,13 @@ describe('ActivityInboxStore preferences', () => {
     expect(restored.snapshot().preferences[0]).toMatchObject({
       sessionId: 'task-2', followed: true, reviewedThroughSeq: 4, archivedThroughSeq: 4,
       snooze: { sourceSeq: 4 },
+    })
+    expect(store.snapshot().presence?.activities[0]).toMatchObject({
+      sessionId: 'task-2',
+      state: 'ready',
+      followed: true,
+      reviewed: true,
+      archived: true,
     })
   })
 

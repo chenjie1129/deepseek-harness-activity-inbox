@@ -94,5 +94,8 @@ export async function apply(ctx: ClientContext): Promise<(() => Promise<void>) |
 }
 
 export { ActivityInboxPanel } from './ActivityInboxPanel.js'
-export { activityBadgeCount, deriveInboxRows, rowsForFilter } from './model.js'
+export { deriveAgentActivities } from './domain/activity.js'
+export { activityBadgeCount, deriveInboxRows, projectInboxRows, rowsForFilter } from './model.js'
+export { derivePetProjection, shouldPausePetAnimation, shouldTransitionImmediately } from './pet/model.js'
+export { readPetSettings, writePetSettings } from './pet/settings.js'
 export { createActivityInboxSource } from './source.js'

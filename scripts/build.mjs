@@ -13,6 +13,7 @@ const external = [
   '@deepseek-ai/dsh-client-ui-slots',
   '@deepseek-ai/dsh-session',
   '@deepseek-ai/dsh-session-persistence',
+  '@deepseek-ai/dsh-user-approval',
   '@deepseek-ai/schemastery',
   'react',
   'react/jsx-runtime',
@@ -37,6 +38,16 @@ await build({
   target: 'node22',
   sourcemap: true,
   external,
+})
+
+await build({
+  entryPoints: ['src/presence/index.ts'],
+  outfile: 'lib/presence.js',
+  bundle: true,
+  format: 'esm',
+  platform: 'neutral',
+  target: ['es2022'],
+  sourcemap: true,
 })
 
 await build({

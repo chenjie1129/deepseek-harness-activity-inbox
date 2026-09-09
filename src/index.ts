@@ -6,6 +6,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-persistence'
 import type {} from '@deepseek-ai/dsh-client-connection'
+import type {} from '@deepseek-ai/dsh-user-approval'
 import z from '@deepseek-ai/schemastery'
 import {
   ACTIVITY_INBOX_RPC_CHANNEL,
@@ -18,9 +19,12 @@ import {
   ACTIVITY_INBOX_REMOTE_NAMESPACE,
   ACTIVITY_INBOX_REMOTE_SERVICE,
 } from './remote.js'
+import { observeApprovalPresence } from './presence/approval.js'
 import { ActivityInboxStore } from './store.js'
 
 export * from './contracts.js'
+export * from './presence/projector.js'
+export * from './presence/protocol.js'
 export { ActivityInboxStore } from './store.js'
 
 export const name = 'activity-inbox'
@@ -131,6 +135,7 @@ export function apply(ctx: Context, config: Config = {}): void {
   }
   ctx.on('session/event', observe)
   ctx.on('session/created', (session: Session) => { store.noteSession(session.header) })
+  ctx.on('approval/request', (request, next) => observeApprovalPresence(store, request, next), { prepend: true })
 
   // Live sessions include constructor seeds that were never published on the
   // event firehose. Fold them before the asynchronous cold-history scan.

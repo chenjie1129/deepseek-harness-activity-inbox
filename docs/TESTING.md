@@ -17,6 +17,16 @@ The test suite covers:
 - a new terminal event re-arming old archive/snooze state;
 - hidden subagent fallback to its visible parent;
 - strict Remote descriptors, Remote-shaped source calls, and the legacy Connection RPC adapter.
+- shared activity-domain compatibility when live running state leads a delayed
+  terminal snapshot;
+- deterministic Pet priority, attention count, and target selection;
+- reviewed, snoozed, and archived activity suppression in the Pet projection;
+- Pet settings corruption and storage-failure fallback;
+- reduced-motion, hidden-page, and urgent-transition policy.
+- Host-owned running, question, plan-review, and approval Presence lifecycles;
+- historical backfill exclusion from transient running and waiting state;
+- Presence protocol validation, stale-revision rejection, and Host-restart
+  acceptance.
 
 Before a release, additionally verify the exact generated `.tgz`:
 

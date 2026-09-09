@@ -11,6 +11,8 @@ A standalone DeepSeek Harness plugin that turns exact agent outcomes into a calm
 - **Reviewed, snoozed, archived** — durable single-operator workflow state. A newer terminal event automatically re-arms an older reviewed, snoozed, or archived task.
 - **Subagent routing** — child outcomes identify their visible parent; the Open action routes to the child when addressable and otherwise to the parent task.
 - **Evidence, not summaries** — every terminal row comes from the durable Harness session log and displays its source event sequence. No model call generates the inbox.
+- **Ambient Pet** — the sidebar companion reflects the same deterministic activity facts with running, waiting, ready, blocked, failed, idle, and offline states.
+- **Desktop-ready Presence protocol** — the Host owns live state and exports a versioned, browser-safe `./presence` contract with restart-aware revisions.
 
 The attention badge counts unresolved live waits plus unreviewed blocked or failed outcomes. Ordinary completions remain available for catch-up without making the badge noisy.
 
@@ -53,7 +55,7 @@ Harness `0.1.2-alpha.1` uses the supported Typert Remote API. The plugin automat
 - No deep link to an individual event; current Harness UI exposes task navigation, not stable event anchors.
 - No historical backfill for a session log the configured persistence provider cannot read. The panel reports the number of backfill failures.
 
-See [Architecture](docs/ARCHITECTURE.md), [Testing](docs/TESTING.md), and [Security](SECURITY.md).
+See [Architecture](docs/ARCHITECTURE.md), [Pets Architecture](docs/PETS_ARCHITECTURE.md), [Testing](docs/TESTING.md), and [Security](SECURITY.md).
 
 ## Development
 

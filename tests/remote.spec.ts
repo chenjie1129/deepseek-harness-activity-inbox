@@ -20,6 +20,15 @@ function snapshot(revision = 1): ActivityInboxSnapshot {
     backfillFailures: 0,
     activities: [],
     preferences: [],
+    presence: {
+      version: 1,
+      instanceId: 'host-1',
+      revision,
+      generatedAt: 1_000,
+      ready: true,
+      backfillFailures: 0,
+      activities: [],
+    },
   }
 }
 
@@ -43,6 +52,10 @@ describe('Harness transport compatibility', () => {
     })).toEqual({ action: 'archive', sessionId: 'session-1', sourceSeq: 4 })
     expect(() => read.result.schema.parse({ version: 1, activities: [] })).toThrow()
     expect(read.result.schema.parse(snapshot())).toEqual(snapshot())
+    expect(() => read.result.schema.parse({
+      ...snapshot(),
+      presence: { ...snapshot().presence, instanceId: '', revision: -1 },
+    })).toThrow()
   })
 
   it('drives the observable through the Remote-shaped transport', async () => {
