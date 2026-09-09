@@ -3,7 +3,7 @@
 ## Status
 
 - Decision: approved for implementation in the Activity Inbox plugin.
-- Scope: PR1 through PR3 plus desktop foundation D1 and D2.
+- Scope: PR1 through PR3 plus desktop milestones D1 through D3.
 - Product boundary: a deterministic ambient view of Harness activity, not an
   autonomous companion, game, or AI-generated summary.
 
@@ -24,7 +24,7 @@
 
 - Custom Pet imports or an asset marketplace.
 - Pet personality, chat, memory, progression, or rewards.
-- Cross-application desktop overlays.
+- Cross-application activity sources.
 - Multi-user state or assignment.
 - Replacing the Activity Inbox.
 - A new Host persistence format for presentation-only preferences.
@@ -42,7 +42,7 @@ operator preferences ────┘           v
                          Inbox projection  Pet projection
                                               │
                                     Pet presentation runtime
-                               web sidebar / future desktop app
+                                web sidebar / Tauri desktop app
 ```
 
 The Host is the authority for terminal facts, live running state, pending
@@ -189,6 +189,14 @@ The Pet is rendered next to the existing Activity sidebar action:
 This placement avoids obscuring the editor and preserves the sidebar as the
 single activity entry point.
 
+The D3 desktop client adds a separate 260 by 280 pixel transparent window. It
+is undecorated, always-on-top by default, movable from an explicit drag handle,
+and snaps only when released within 48 pixels of a display edge. Menu bar
+actions restore interaction, show the window, or recenter it when click-through
+is enabled, the window is hidden, or a display-layout change leaves it
+inaccessible. The window never embeds Harness or receives the Presence bearer
+token.
+
 ## Preferences
 
 PR1-PR3 store presentation-only settings in browser storage:
@@ -302,6 +310,19 @@ when it still points to the current instance.
 - Reject active-socket replacement and clean up only the current Host's socket.
 - Export Node-only transport utilities from `./presence/host`.
 
+### D3: Native desktop presentation
+
+- Add an independently buildable Tauri 2 application under `desktop/`.
+- Keep Keychain access, Unix socket parsing, reconnect cursors, URL opening,
+  tray actions, and window operations in Rust.
+- Forward only validated runtime state to the React WebView.
+- Render a transparent single-Pet surface with status, evidence, attention
+  count, reduced-motion support, and no remote assets.
+- Support drag, per-monitor edge snap, always-on-top, click-through, and
+  menu-bar recovery.
+- Persist window position and presentation preferences without changing Host
+  facts.
+
 ## Verification Contract
 
 The implementation is complete only when:
@@ -314,6 +335,9 @@ The implementation is complete only when:
 5. TypeScript, production bundles, and npm package dry-run pass;
 6. a real browser renders the Pet without console errors or overlap at desktop
    and narrow viewport sizes.
+7. desktop TypeScript, Rust tests, and a Tauri production build pass;
+8. the real desktop executable renders a non-empty transparent window, consumes
+   a live Host snapshot, and exposes recovery controls in the menu bar.
 
 ## Future Split Trigger
 

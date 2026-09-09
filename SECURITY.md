@@ -29,6 +29,11 @@ Please report suspected vulnerabilities privately through GitHub's security-advi
 - The stable endpoint targets a random per-instance socket in the same private
   directory. Startup never replaces an active listener, and shutdown removes
   the stable path only while it still targets this Host.
+- The Tauri desktop backend owns Keychain and socket access. The WebView
+  receives validated Presence snapshots but never the bearer token.
+- Desktop commands expose only bounded window operations and opening the
+  configured loopback Harness URL; arbitrary shell execution and remote URL
+  opening are not exposed.
 
 The local Presence token authenticates only the Unix socket and does not add
 authentication to Harness itself. Keep the Host on its supported

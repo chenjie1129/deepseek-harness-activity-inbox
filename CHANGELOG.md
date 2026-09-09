@@ -17,7 +17,13 @@
 - Store the socket bearer token in macOS Keychain without a plaintext
   credential file or token-bearing process argument.
 - Bound authentication time, request frames, client count, and buffered socket
-  output; protect active endpoints and inode-safe cleanup.
+  output; protect active endpoints and instance-target-safe cleanup.
+- Add a Tauri 2 desktop Pet with a transparent always-on-top window, live
+  Presence reconnect, deterministic state animation, and evidence details.
+- Add drag and per-display edge snapping, click-through mode, local preference
+  persistence, and a menu-bar recovery surface.
+- Keep Keychain credentials and Unix socket access in Rust so the WebView only
+  receives validated Presence state.
 - Document the presentation-layer boundary, priority policy, and future split
   criteria.
 

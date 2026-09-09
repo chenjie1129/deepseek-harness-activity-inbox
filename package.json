@@ -60,6 +60,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "desktop:check": "npm --prefix desktop run check",
+    "desktop:build": "npm --prefix desktop run tauri build -- --debug --no-bundle",
     "check": "npm run test && npm run typecheck && npm run build && npm pack --dry-run",
     "prepack": "npm run build",
     "prepare": "npm run build"

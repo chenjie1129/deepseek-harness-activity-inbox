@@ -14,6 +14,7 @@
 - **环境式 Pet**：侧边栏伙伴复用同一套确定性活动事实，展示运行、等待、待审阅、阻塞、失败、空闲和离线状态。
 - **桌面端就绪的 Presence 协议**：Host 统一维护实时状态，并导出带实例与 revision 语义的浏览器安全 `./presence` 契约。
 - **本地认证 Presence**：macOS 通过仅当前用户可访问的 Unix Socket 推送 revision，Bearer Token 只保存在 Keychain，不创建明文凭据文件。
+- **原生桌面 Pet**：`desktop/` 中的 Tauri 客户端提供透明置顶窗口、边缘吸附、鼠标穿透和菜单栏恢复入口。
 
 红色角标只统计尚未处理的实时等待，以及未读的 blocked / failed 结果。普通完成项保留在收件箱中，但不会制造角标噪音。
 
@@ -61,6 +62,15 @@ macOS Keychain 的 `com.deepseek-harness.activity-inbox.presence` service
 `presence/subscribe`。Host 返回 `presence/snapshot` 或
 `presence/unchanged`，并主动推送后续 revision。Node 本地集成可使用
 `./presence/host` 导出的 Keychain 描述符和 Socket 工具。
+
+启动兼容的 Harness Host 后，可构建 macOS 桌面客户端：
+
+```bash
+cd desktop
+npm install
+npm run check
+npm run tauri -- build
+```
 
 在 Harness `0.1.2-alpha.1` 中，插件使用官方支持的 Typert Remote API；在 `0.1.1-rc.2` 中，会自动回退到旧版 Connection RPC。旧版 RPC 的默认权限为 `loopback`；只有在明确配置旧版 Harness Host 的可信远程来源后，才应改用 `trusted-host`。
 

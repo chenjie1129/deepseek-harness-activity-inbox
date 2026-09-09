@@ -14,6 +14,7 @@ A standalone DeepSeek Harness plugin that turns exact agent outcomes into a calm
 - **Ambient Pet** — the sidebar companion reflects the same deterministic activity facts with running, waiting, ready, blocked, failed, idle, and offline states.
 - **Desktop-ready Presence protocol** — the Host owns live state and exports a versioned, browser-safe `./presence` contract with restart-aware revisions.
 - **Authenticated local Presence** — macOS publishes revisions over an owner-only Unix socket and keeps its bearer token in Keychain rather than a plaintext file.
+- **Native desktop Pet** — the Tauri client in `desktop/` provides a transparent always-on-top window, edge snapping, click-through mode, and menu-bar recovery.
 
 The attention badge counts unresolved live waits plus unreviewed blocked or failed outcomes. Ordinary completions remain available for catch-up without making the badge noisy.
 
@@ -69,6 +70,15 @@ Desktop clients use newline-delimited JSON. They first send
 `presence/snapshot` or `presence/unchanged` and pushes later revisions. The
 Node-only `./presence/host` export provides the Keychain descriptor and socket
 helpers for local integrations.
+
+Build the macOS desktop client after starting a compatible Harness Host:
+
+```bash
+cd desktop
+npm install
+npm run check
+npm run tauri -- build
+```
 
 ## What v0.1 does not claim
 

@@ -51,6 +51,20 @@ The stable endpoint points to a random per-instance socket in the same private
 directory. Startup refuses to replace an active listener, while shutdown
 removes the stable path only if it still targets the current Host.
 
+## Desktop half
+
+The `desktop/` package is an independently buildable Tauri 2 application.
+Its Rust process reads Keychain credentials, owns the Unix socket connection,
+validates bounded protocol messages, preserves the reconnect cursor, and emits
+only validated Presence snapshots to the WebView. JavaScript never receives
+the bearer token.
+
+The React surface applies the same shared Pet projection as the sidebar. The
+native window is transparent, undecorated, always-on-top by default, and
+restores its position. Window movement snaps to the nearest edge of the current
+display. Click-through and visibility remain recoverable from the menu bar so
+the Pet cannot permanently lock the user out of its controls.
+
 ## Re-arm semantics
 
 Review and archive watermarks are event sequences. Snooze carries the sequence it suppressed. If a later terminal event has a larger sequence, the item becomes visible again automatically. Stale actions must match the current terminal sequence or the Host rejects them.

@@ -46,5 +46,10 @@ Before a release, additionally verify the exact generated `.tgz`:
 9. on macOS, create/read/delete a disposable Keychain item without printing its
    value, then authenticate to the packed plugin's Unix socket and observe a
    valid Presence response.
+10. run `npm --prefix desktop run check` and `cargo test` in
+    `desktop/src-tauri`;
+11. build the native executable and verify the transparent Pet window, live
+    Presence state, drag/snap behavior, toolbar controls, and menu-bar recovery
+    on a real macOS desktop.
 
 Passing deterministic tests proves the inbox mechanism. It does not prove third-party provider availability, natural-language quality, or multi-user behavior.
