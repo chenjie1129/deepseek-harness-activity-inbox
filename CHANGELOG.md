@@ -24,6 +24,8 @@
   persistence, and a menu-bar recovery surface.
 - Keep Keychain credentials and Unix socket access in Rust so the WebView only
   receives validated Presence state.
+- Let the Harness Host discover, start, stop, restart, and report the optional
+  desktop Pet through bounded lifecycle commands.
 - Document the presentation-layer boundary, priority policy, and future split
   criteria.
 

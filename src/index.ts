@@ -1,7 +1,8 @@
 /** DeepSeek Harness Host half: durable event backfill, preference store, and RPC. */
 
 import { homedir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-persistence'
@@ -11,9 +12,12 @@ import z from '@deepseek-ai/schemastery'
 import {
   ACTIVITY_INBOX_RPC_CHANNEL,
   isActivityMutation,
+  isDesktopPetLifecycleCommand,
   type ActivityInboxSnapshot,
   type ActivityMutation,
+  type DesktopPetLifecycleCommand,
 } from './contracts.js'
+import { DesktopPetLifecycle } from './desktop/lifecycle.js'
 import {
   ACTIVITY_INBOX_HOST_CONTRIBUTION,
   ACTIVITY_INBOX_REMOTE_NAMESPACE,
@@ -47,6 +51,11 @@ export interface Config {
   presenceKeychainAccount?: string
   presenceAuthTimeoutMs?: number
   presenceMaxClients?: number
+  desktopPetEnabled?: boolean
+  desktopPetAutoStart?: boolean
+  desktopPetStopOnHostExit?: boolean
+  desktopPetExecutablePath?: string
+  desktopPetWebUrl?: string
 }
 
 export const Config: z<Config> = z.object({
@@ -60,6 +69,11 @@ export const Config: z<Config> = z.object({
   presenceKeychainAccount: z.string(),
   presenceAuthTimeoutMs: z.natural().min(100).max(60_000).default(5_000),
   presenceMaxClients: z.natural().min(1).max(64).default(8),
+  desktopPetEnabled: z.boolean().default(process.platform === 'darwin'),
+  desktopPetAutoStart: z.boolean().default(false),
+  desktopPetStopOnHostExit: z.boolean().default(true),
+  desktopPetExecutablePath: z.string(),
+  desktopPetWebUrl: z.string().default('http://127.0.0.1:3080/'),
 })
 
 function defaultDataRoot(): string {
@@ -97,6 +111,7 @@ interface ActivityInboxRemoteService {
   }
   snapshot(): Promise<ActivityInboxSnapshot>
   mutate(mutation: ActivityMutation): Promise<ActivityInboxSnapshot>
+  petControl(command: DesktopPetLifecycleCommand): Promise<ActivityInboxSnapshot>
 }
 
 interface RemoteInstallation {
@@ -108,20 +123,29 @@ function installRemote(
   store: ActivityInboxStore,
   initialized: Promise<void>,
   maxPayloadBytes: number,
+  desktopPet: DesktopPetLifecycle,
+  desktopPetReady: Promise<unknown>,
 ): RemoteInstallation | undefined {
   const typert = ctx.get('typert') as TypertRegistryLike | undefined
   if (typeof typert?.register !== 'function') return undefined
 
   const service = {
     async snapshot(): Promise<ActivityInboxSnapshot> {
-      await initialized
-      return store.snapshot()
+      await Promise.all([initialized, desktopPetReady])
+      return { ...store.snapshot(), desktopPet: desktopPet.snapshot() }
     },
     async mutate(mutation: ActivityMutation): Promise<ActivityInboxSnapshot> {
       if (payloadSize(mutation) > maxPayloadBytes) throw new Error('Activity Inbox payload is too large.')
       if (!isActivityMutation(mutation)) throw new Error('Malformed Activity Inbox mutation.')
-      await initialized
-      return store.mutate(mutation)
+      await Promise.all([initialized, desktopPetReady])
+      return { ...await store.mutate(mutation), desktopPet: desktopPet.snapshot() }
+    },
+    async petControl(command: DesktopPetLifecycleCommand): Promise<ActivityInboxSnapshot> {
+      if (payloadSize(command) > maxPayloadBytes) throw new Error('Desktop Pet payload is too large.')
+      if (!isDesktopPetLifecycleCommand(command)) throw new Error('Malformed Desktop Pet command.')
+      await Promise.all([initialized, desktopPetReady])
+      await desktopPet.control(command)
+      return { ...store.snapshot(), desktopPet: desktopPet.snapshot() }
     },
   } as ActivityInboxRemoteService
   service.typertRemote = Object.freeze({
@@ -155,6 +179,7 @@ export function apply(ctx: Context, config: Config = {}): void {
   const presenceSocketPath = config.presenceSocketPath === undefined
     ? defaultPresenceSocketPath()
     : resolve(config.presenceSocketPath)
+  const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
   const store = new ActivityInboxStore(statePath)
   const abort = new AbortController()
   const initialized = store.initialize()
@@ -225,7 +250,41 @@ export function apply(ctx: Context, config: Config = {}): void {
       })
     : Promise.resolve(undefined)
 
-  const remote = installRemote(ctx, store, initialized, maxPayloadBytes)
+  const desktopPetEnvironment: NodeJS.ProcessEnv = {
+    ...process.env,
+    DSH_HOME: defaultDataRoot(),
+    DSH_PRESENCE_SOCKET: presenceSocketPath,
+    DSH_PRESENCE_KEYCHAIN_SERVICE:
+      config.presenceKeychainService ?? DEFAULT_PRESENCE_KEYCHAIN_SERVICE,
+    DSH_WEB_URL: config.desktopPetWebUrl ?? 'http://127.0.0.1:3080/',
+  }
+  if (config.presenceKeychainAccount !== undefined) {
+    desktopPetEnvironment.DSH_PRESENCE_KEYCHAIN_ACCOUNT = config.presenceKeychainAccount
+  }
+  const desktopPet = new DesktopPetLifecycle({
+    enabled: config.desktopPetEnabled ?? process.platform === 'darwin',
+    autoStart: config.desktopPetAutoStart ?? false,
+    stopOnHostExit: config.desktopPetStopOnHostExit ?? true,
+    ...config.desktopPetExecutablePath === undefined
+      ? {}
+      : { executablePath: config.desktopPetExecutablePath },
+    searchRoots: [
+      packageRoot,
+      process.cwd(),
+      resolve(process.cwd(), '..', 'deepseek-harness-activity-inbox'),
+    ],
+    environment: desktopPetEnvironment,
+  })
+  const desktopPetReady = presenceBridge.then(() => desktopPet.initialize())
+
+  const remote = installRemote(
+    ctx,
+    store,
+    initialized,
+    maxPayloadBytes,
+    desktopPet,
+    desktopPetReady,
+  )
   const removeRpc = remote === undefined ? ctx.connection.rpc.handle(ACTIVITY_INBOX_RPC_CHANNEL, async (endpoint, payload) => {
     if (payloadSize(payload) > maxPayloadBytes) {
       return { ok: false, error: { code: 'bad-request', message: 'Activity Inbox payload is too large.', details: { issues: [] } } }
@@ -236,14 +295,19 @@ export function apply(ctx: Context, config: Config = {}): void {
         if (payload !== null && (typeof payload !== 'object' || Array.isArray(payload))) {
           return { ok: false, error: { code: 'bad-request', message: 'Malformed Activity Inbox snapshot request.', details: { issues: [] } } }
         }
-        return { ok: true, value: store.snapshot() }
+        await desktopPetReady
+        return { ok: true, value: { ...store.snapshot(), desktopPet: desktopPet.snapshot() } }
       }
       if (endpoint === 'mutate') {
         if (!isActivityMutation(payload)) {
           return { ok: false, error: { code: 'bad-request', message: 'Malformed Activity Inbox mutation.', details: { issues: [] } } }
         }
         try {
-          return { ok: true, value: await store.mutate(payload) }
+          await desktopPetReady
+          return {
+            ok: true,
+            value: { ...await store.mutate(payload), desktopPet: desktopPet.snapshot() },
+          }
         } catch (error) {
           return {
             ok: false,
@@ -253,6 +317,17 @@ export function apply(ctx: Context, config: Config = {}): void {
               details: { issues: [] },
             },
           }
+        }
+      }
+      if (endpoint === 'pet-control') {
+        if (!isDesktopPetLifecycleCommand(payload)) {
+          return { ok: false, error: { code: 'bad-request', message: 'Malformed Desktop Pet command.', details: { issues: [] } } }
+        }
+        await desktopPetReady
+        await desktopPet.control(payload)
+        return {
+          ok: true,
+          value: { ...store.snapshot(), desktopPet: desktopPet.snapshot() },
         }
       }
       return { ok: false, error: { code: 'bad-request', message: 'Unknown Activity Inbox endpoint.', details: { issues: [] } } }
@@ -266,6 +341,7 @@ export function apply(ctx: Context, config: Config = {}): void {
 
   ctx.effect(() => async () => {
     abort.abort()
+    await desktopPet.dispose()
     await (await presenceBridge)?.close()
     await remote?.dispose()
     await removeRpc?.()

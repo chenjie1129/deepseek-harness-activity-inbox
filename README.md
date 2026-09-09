@@ -15,6 +15,7 @@ A standalone DeepSeek Harness plugin that turns exact agent outcomes into a calm
 - **Desktop-ready Presence protocol** — the Host owns live state and exports a versioned, browser-safe `./presence` contract with restart-aware revisions.
 - **Authenticated local Presence** — macOS publishes revisions over an owner-only Unix socket and keeps its bearer token in Keychain rather than a plaintext file.
 - **Native desktop Pet** — the Tauri client in `desktop/` provides a transparent always-on-top window, edge snapping, click-through mode, and menu-bar recovery.
+- **Host-managed lifecycle** — the Inbox can start or stop a discovered desktop build without exposing executable paths or process control to the browser.
 
 The attention badge counts unresolved live waits plus unreviewed blocked or failed outcomes. Ordinary completions remain available for catch-up without making the badge noisy.
 
@@ -79,6 +80,11 @@ npm install
 npm run check
 npm run tauri -- build
 ```
+
+The Host discovers a local release build automatically during repository
+development. Packaged deployments can set `desktopPetExecutablePath`.
+`desktopPetAutoStart` is disabled by default, and
+`desktopPetStopOnHostExit` defaults to enabled.
 
 ## What v0.1 does not claim
 

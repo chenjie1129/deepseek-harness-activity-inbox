@@ -70,6 +70,7 @@ export async function apply(ctx: ClientContext): Promise<(() => Promise<void>) |
       hooks: { inbox: source },
       onRefresh: () => { source.refresh() },
       onMutate: mutation => source.mutate(mutation),
+      onPetControl: command => source.controlPet(command),
       onOpenSession(sessionId) {
         const id = sessionId as SessionId
         const address = sessions.subagentAddress(id)

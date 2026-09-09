@@ -35,6 +35,14 @@ DSH_WEB_URL
 Window position and presentation settings are stored locally. They never alter
 Host activity facts.
 
+## Host-managed lifecycle
+
+The Activity Inbox Host can discover this release bundle and expose Start/Stop
+controls in the Harness sidebar. It passes the Presence endpoint and Keychain
+descriptor through the child environment; the browser cannot choose a binary,
+arguments, environment variables, or process ID. Automatic startup remains
+opt-in.
+
 Transparent macOS windows require Tauri's `macOSPrivateApi`; this build is
 intended for direct signed distribution and is not eligible for the Mac App
 Store.

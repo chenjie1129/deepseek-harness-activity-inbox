@@ -3,7 +3,7 @@
 ## Status
 
 - Decision: approved for implementation in the Activity Inbox plugin.
-- Scope: PR1 through PR3 plus desktop milestones D1 through D3.
+- Scope: PR1 through PR3 plus desktop milestones D1 through D4.
 - Product boundary: a deterministic ambient view of Harness activity, not an
   autonomous companion, game, or AI-generated summary.
 
@@ -323,6 +323,22 @@ when it still points to the current instance.
 - Persist window position and presentation preferences without changing Host
   facts.
 
+### D4: Host-managed desktop lifecycle
+
+- Discover a configured or local release build without accepting executable
+  paths or arguments from browser RPC payloads.
+- Publish a versioned lifecycle projection with `unsupported`, `unavailable`,
+  `stopped`, `starting`, `running`, `stopping`, and `error` phases.
+- Expose bounded `start`, `stop`, and `restart` commands through both supported
+  Harness transports.
+- Let the Activity Inbox start or stop the desktop renderer while preserving
+  compatibility with older Hosts that do not publish lifecycle state.
+- Pass the resolved Presence socket, Keychain descriptor, DSH home, and
+  loopback Harness URL to the managed process through its environment.
+- Stop only the child process owned by the current Host during orderly plugin
+  disposal. Never kill an unowned process by name.
+- Keep automatic startup opt-in through `desktopPetAutoStart`.
+
 ## Verification Contract
 
 The implementation is complete only when:
@@ -338,6 +354,8 @@ The implementation is complete only when:
 7. desktop TypeScript, Rust tests, and a Tauri production build pass;
 8. the real desktop executable renders a non-empty transparent window, consumes
    a live Host snapshot, and exposes recovery controls in the menu bar.
+9. lifecycle discovery, unavailable state, auto-start, start, stop, and
+   transport validation have deterministic tests.
 
 ## Future Split Trigger
 

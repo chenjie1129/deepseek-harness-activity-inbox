@@ -15,6 +15,7 @@
 - **桌面端就绪的 Presence 协议**：Host 统一维护实时状态，并导出带实例与 revision 语义的浏览器安全 `./presence` 契约。
 - **本地认证 Presence**：macOS 通过仅当前用户可访问的 Unix Socket 推送 revision，Bearer Token 只保存在 Keychain，不创建明文凭据文件。
 - **原生桌面 Pet**：`desktop/` 中的 Tauri 客户端提供透明置顶窗口、边缘吸附、鼠标穿透和菜单栏恢复入口。
+- **Host 托管生命周期**：Inbox 可启动或停止已发现的桌面构建，浏览器侧无法传入可执行路径或直接控制任意进程。
 
 红色角标只统计尚未处理的实时等待，以及未读的 blocked / failed 结果。普通完成项保留在收件箱中，但不会制造角标噪音。
 
@@ -71,6 +72,10 @@ npm install
 npm run check
 npm run tauri -- build
 ```
+
+仓库开发模式下，Host 会自动发现本地 release 构建。打包部署可配置
+`desktopPetExecutablePath`。`desktopPetAutoStart` 默认关闭，
+`desktopPetStopOnHostExit` 默认开启。
 
 在 Harness `0.1.2-alpha.1` 中，插件使用官方支持的 Typert Remote API；在 `0.1.1-rc.2` 中，会自动回退到旧版 Connection RPC。旧版 RPC 的默认权限为 `loopback`；只有在明确配置旧版 Harness Host 的可信远程来源后，才应改用 `trusted-host`。
 

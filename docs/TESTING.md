@@ -51,5 +51,8 @@ Before a release, additionally verify the exact generated `.tgz`:
 11. build the native executable and verify the transparent Pet window, live
     Presence state, drag/snap behavior, toolbar controls, and menu-bar recovery
     on a real macOS desktop.
+12. verify lifecycle discovery and unavailable states, start and stop the Pet
+    from the Activity Inbox, and confirm Host disposal terminates only its
+    managed child.
 
 Passing deterministic tests proves the inbox mechanism. It does not prove third-party provider availability, natural-language quality, or multi-user behavior.

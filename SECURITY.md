@@ -34,6 +34,9 @@ Please report suspected vulnerabilities privately through GitHub's security-advi
 - Desktop commands expose only bounded window operations and opening the
   configured loopback Harness URL; arbitrary shell execution and remote URL
   opening are not exposed.
+- Browser lifecycle requests are restricted to `start`, `stop`, and `restart`.
+  Executable discovery and environment construction stay in the Host, and the
+  Host terminates only the child process it created.
 
 The local Presence token authenticates only the Unix socket and does not add
 authentication to Harness itself. Keep the Host on its supported

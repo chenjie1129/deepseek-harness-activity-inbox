@@ -34,7 +34,7 @@ function snapshot(revision = 1): ActivityInboxSnapshot {
 
 describe('Harness transport compatibility', () => {
   it('describes strict snapshot and mutation Remote methods', () => {
-    const [read, mutate] = ACTIVITY_INBOX_REMOTE_CONTRIBUTION.descriptors
+    const [read, mutate, petControl] = ACTIVITY_INBOX_REMOTE_CONTRIBUTION.descriptors
     expect(read).toMatchObject({
       service: ACTIVITY_INBOX_REMOTE_SERVICE,
       namespace: ACTIVITY_INBOX_REMOTE_NAMESPACE,
@@ -46,10 +46,17 @@ describe('Harness transport compatibility', () => {
       namespace: ACTIVITY_INBOX_REMOTE_NAMESPACE,
       method: 'mutate',
     })
+    expect(petControl).toMatchObject({
+      service: ACTIVITY_INBOX_REMOTE_SERVICE,
+      namespace: ACTIVITY_INBOX_REMOTE_NAMESPACE,
+      method: 'petControl',
+    })
     expect(() => mutate.parameters[0].codec.schema.parse({ action: 'archive' })).toThrow()
     expect(mutate.parameters[0].codec.schema.parse({
       action: 'archive', sessionId: 'session-1', sourceSeq: 4,
     })).toEqual({ action: 'archive', sessionId: 'session-1', sourceSeq: 4 })
+    expect(() => petControl.parameters[0].codec.schema.parse({ action: 'launch' })).toThrow()
+    expect(petControl.parameters[0].codec.schema.parse({ action: 'start' })).toEqual({ action: 'start' })
     expect(() => read.result.schema.parse({ version: 1, activities: [] })).toThrow()
     expect(read.result.schema.parse(snapshot())).toEqual(snapshot())
     expect(() => read.result.schema.parse({
@@ -62,6 +69,7 @@ describe('Harness transport compatibility', () => {
     const transport: ActivityInboxTransport = {
       snapshot: vi.fn(async () => ({ ok: true, value: snapshot(2) })),
       mutate: vi.fn(async () => ({ ok: true, value: snapshot(3) })),
+      petControl: vi.fn(async () => ({ ok: true, value: snapshot(4) })),
     }
     const source = createActivityInboxSource(transport, error => { throw error })
 
@@ -69,6 +77,8 @@ describe('Harness transport compatibility', () => {
     await vi.waitFor(() => { expect(source.getSnapshot().server?.revision).toBe(2) })
     await expect(source.mutate({ action: 'unsnooze', sessionId: 'session-1' })).resolves.toEqual({ ok: true })
     expect(source.getSnapshot().server?.revision).toBe(3)
+    await expect(source.controlPet({ action: 'start' })).resolves.toEqual({ ok: true })
+    expect(source.getSnapshot().server?.revision).toBe(4)
   })
 
   it('retains the legacy channel adapter for rc.2 profiles', async () => {
@@ -78,9 +88,13 @@ describe('Harness transport compatibility', () => {
 
     await transport.snapshot()
     await transport.mutate({ action: 'unsnooze', sessionId: 'session-1' })
+    await transport.petControl({ action: 'stop' })
     expect(call).toHaveBeenNthCalledWith(1, '/activity-inbox', 'snapshot', {})
     expect(call).toHaveBeenNthCalledWith(2, '/activity-inbox', 'mutate', {
       action: 'unsnooze', sessionId: 'session-1',
+    })
+    expect(call).toHaveBeenNthCalledWith(3, '/activity-inbox', 'pet-control', {
+      action: 'stop',
     })
   })
 })

@@ -175,6 +175,7 @@
   flex: none;
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
   padding: 7px 12px;
   border-bottom: 1px solid var(--dsw-alias-border-l2);
@@ -183,7 +184,17 @@
   line-height: 18px;
 }
 
-.activityPet-settings > span { margin-right: auto; font-weight: 600; }
+.activityPet-settingsLabel { margin-right: auto; font-weight: 600; }
+.activityPet-lifecycle {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--dsw-alias-button-ghost-active-fill);
+  color: var(--dsw-alias-label-caption);
+  font-size: 10px;
+  line-height: 18px;
+}
+.activityPet-lifecycle[data-phase='running'] { color: var(--dsw-alias-state-success-primary, #24795c); }
+.activityPet-lifecycle[data-phase='error'] { color: var(--dsw-alias-state-error-primary, #b93c48); }
 .activityPet-settings button {
   min-height: 26px;
   padding: 2px 7px;

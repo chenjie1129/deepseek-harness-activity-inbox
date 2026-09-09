@@ -61,9 +61,18 @@ the bearer token.
 
 The React surface applies the same shared Pet projection as the sidebar. The
 native window is transparent, undecorated, always-on-top by default, and
-restores its position. Window movement snaps to the nearest edge of the current
-display. Click-through and visibility remain recoverable from the menu bar so
-the Pet cannot permanently lock the user out of its controls.
+restores its position. Window movement snaps only within the configured edge
+proximity. Click-through, visibility, and recentering remain recoverable from
+the menu bar so the Pet cannot permanently lock the user out of its controls.
+
+The Host also owns an optional desktop lifecycle controller. It discovers only
+configured or known local Activity Pet builds, launches them with the exact
+Presence endpoint and Keychain descriptor, tracks the child process, and
+publishes a bounded lifecycle state through the existing Activity Inbox RPC.
+Browser requests select only `start`, `stop`, or `restart`; they cannot supply
+an executable, arguments, environment variables, or arbitrary process IDs.
+Automatic launch is opt-in, and orderly Host disposal stops only the process
+that Host instance created.
 
 ## Re-arm semantics
 

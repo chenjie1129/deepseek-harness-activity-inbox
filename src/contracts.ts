@@ -3,10 +3,34 @@
 export const ACTIVITY_INBOX_RPC_CHANNEL = '/activity-inbox'
 export const ACTIVITY_INBOX_STATE_VERSION = 1
 export const ACTIVITY_PRESENCE_PROTOCOL_VERSION = 1
+export const DESKTOP_PET_LIFECYCLE_VERSION = 1
 
 export type ActivityOutcome = 'completed' | 'failed' | 'blocked'
 export type PendingInteractionKind = 'approval' | 'plan-review' | 'question'
 export type AgentPresenceState = 'idle' | 'running' | 'needs-input' | 'blocked' | 'failed' | 'ready'
+export type DesktopPetLifecyclePhase =
+  | 'unsupported'
+  | 'unavailable'
+  | 'stopped'
+  | 'starting'
+  | 'running'
+  | 'stopping'
+  | 'error'
+
+export interface DesktopPetLifecycleSnapshot {
+  version: 1
+  revision: number
+  phase: DesktopPetLifecyclePhase
+  available: boolean
+  managed: boolean
+  autoStart: boolean
+  message?: string
+}
+
+export type DesktopPetLifecycleCommand =
+  | { action: 'start' }
+  | { action: 'stop' }
+  | { action: 'restart' }
 
 /** Latest terminal activity for one Harness session. */
 export interface ActivityRecord {
@@ -43,6 +67,8 @@ export interface ActivityInboxSnapshot {
   preferences: ActivityPreference[]
   /** Host-authoritative runtime projection for Inbox, Pet, and future desktop clients. */
   presence?: ActivityPresenceSnapshot
+  /** Host-owned lifecycle state for the optional native desktop renderer. */
+  desktopPet?: DesktopPetLifecycleSnapshot
 }
 
 export interface PresenceActivity {
@@ -180,6 +206,35 @@ export function isActivityPresenceSnapshot(value: unknown): value is ActivityPre
     && new Set(input.activities.map(activity => (activity as PresenceActivity).sessionId)).size === input.activities.length
 }
 
+export function isDesktopPetLifecycleCommand(value: unknown): value is DesktopPetLifecycleCommand {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+  const action = (value as Record<string, unknown>).action
+  return action === 'start' || action === 'stop' || action === 'restart'
+}
+
+export function isDesktopPetLifecycleSnapshot(value: unknown): value is DesktopPetLifecycleSnapshot {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+  const input = value as Record<string, unknown>
+  return input.version === DESKTOP_PET_LIFECYCLE_VERSION
+    && safeInteger(input.revision)
+    && (
+      input.phase === 'unsupported'
+      || input.phase === 'unavailable'
+      || input.phase === 'stopped'
+      || input.phase === 'starting'
+      || input.phase === 'running'
+      || input.phase === 'stopping'
+      || input.phase === 'error'
+    )
+    && typeof input.available === 'boolean'
+    && typeof input.managed === 'boolean'
+    && typeof input.autoStart === 'boolean'
+    && (input.message === undefined || (
+      typeof input.message === 'string'
+      && input.message.length <= 240
+    ))
+}
+
 /** Validate a snapshot received across either supported Harness transport. */
 export function isActivityInboxSnapshot(value: unknown): value is ActivityInboxSnapshot {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
@@ -193,6 +248,7 @@ export function isActivityInboxSnapshot(value: unknown): value is ActivityInboxS
     && Array.isArray(input.preferences)
     && input.preferences.every(isActivityPreference)
     && (input.presence === undefined || isActivityPresenceSnapshot(input.presence))
+    && (input.desktopPet === undefined || isDesktopPetLifecycleSnapshot(input.desktopPet))
 }
 
 /** Narrow untrusted RPC payloads before they reach persisted operator state. */

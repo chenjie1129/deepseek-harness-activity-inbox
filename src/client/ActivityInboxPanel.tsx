@@ -43,6 +43,8 @@ const css = {
   row: 'activityInbox-row',
   rowHead: 'activityInbox-rowHead',
   rows: 'activityInbox-rows',
+  settingsLabel: 'activityPet-settingsLabel',
+  lifecycle: 'activityPet-lifecycle',
   status: 'activityInbox-status',
   time: 'activityInbox-time',
   trigger: 'activityInbox-trigger',
@@ -158,13 +160,14 @@ function RowActions({ row, busy, mutate, open }: {
 }
 
 export function ActivityInboxPanel({
-  wide, useSessions, useInbox, onRefresh, onMutate, onOpenSession,
+  wide, useSessions, useInbox, onRefresh, onMutate, onPetControl, onOpenSession,
 }: ActivityInboxPanelProps) {
   const inbox = useInbox(value => value)
   const sessions = useSessions(value => value)
   const [open, setOpen] = useState(false)
   const [filter, setFilter] = useState<InboxFilter>('needs-action')
   const [busy, setBusy] = useState<ReadonlySet<string>>(new Set())
+  const [petLifecycleBusy, setPetLifecycleBusy] = useState(false)
   const [actionError, setActionError] = useState<string>()
   const [clock, setClock] = useState(() => Date.now())
   const [documentHidden, setDocumentHidden] = useState(() => document.visibilityState !== 'visible')
@@ -239,6 +242,19 @@ export function ActivityInboxPanel({
     })
   }
 
+  const desktopPet = inbox.server?.desktopPet
+  const controlDesktopPet = (): void => {
+    if (desktopPet === undefined || petLifecycleBusy) return
+    const action = desktopPet.phase === 'running' ? 'stop' : 'start'
+    setPetLifecycleBusy(true)
+    setActionError(undefined)
+    void onPetControl({ action }).then((result) => {
+      if (!result.ok) setActionError(result.message)
+    }).finally(() => {
+      setPetLifecycleBusy(false)
+    })
+  }
+
   return (
     <div className={wide ? css.layer : `${css.layer} ${css.rail}`}>
       {open && (
@@ -279,7 +295,36 @@ export function ActivityInboxPanel({
             })}
           </nav>
           <div className="activityPet-settings" aria-label="Pet settings">
-            <span>Companion</span>
+            <span className={css.settingsLabel}>Companion</span>
+            {desktopPet !== undefined && (
+              <>
+                <span
+                  className={css.lifecycle}
+                  data-phase={desktopPet.phase}
+                  title={desktopPet.message}
+                >
+                  {desktopPet.phase}
+                </span>
+                <button
+                  type="button"
+                  disabled={
+                    petLifecycleBusy
+                    || !desktopPet.available
+                    || desktopPet.phase === 'starting'
+                    || desktopPet.phase === 'stopping'
+                  }
+                  onClick={controlDesktopPet}
+                >
+                  {petLifecycleBusy || desktopPet.phase === 'starting'
+                    ? 'Starting…'
+                    : desktopPet.phase === 'stopping'
+                      ? 'Stopping…'
+                      : desktopPet.phase === 'running'
+                        ? 'Stop desktop'
+                        : 'Start desktop'}
+                </button>
+              </>
+            )}
             <button
               type="button"
               aria-pressed={!petSettings.enabled}

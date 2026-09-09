@@ -7,6 +7,7 @@ import {
   isActivityInboxSnapshot,
   type ActivityInboxSnapshot,
   type ActivityMutation,
+  type DesktopPetLifecycleCommand,
 } from '../contracts.js'
 
 export interface ActivityInboxClientSnapshot {
@@ -19,6 +20,7 @@ export interface ActivityInboxSource extends HostObservable<ActivityInboxClientS
   refresh(): void
   reset(): void
   mutate(mutation: ActivityMutation): Promise<{ ok: true } | { ok: false; message: string }>
+  controlPet(command: DesktopPetLifecycleCommand): Promise<{ ok: true } | { ok: false; message: string }>
 }
 
 interface ActivityInboxRpcResult {
@@ -30,11 +32,13 @@ interface ActivityInboxRpcResult {
 export interface ActivityInboxTransport {
   snapshot(): Promise<ActivityInboxRpcResult>
   mutate(mutation: ActivityMutation): Promise<ActivityInboxRpcResult>
+  petControl(command: DesktopPetLifecycleCommand): Promise<ActivityInboxRpcResult>
 }
 
 export interface ActivityInboxRemoteNamespace {
   snapshot(): Promise<ActivityInboxRpcResult>
   mutate(mutation: ActivityMutation): Promise<ActivityInboxRpcResult>
+  petControl(command: DesktopPetLifecycleCommand): Promise<ActivityInboxRpcResult>
 }
 
 /** Preserve the legacy carrier for 0.1.1-rc.2 profiles. */
@@ -42,6 +46,7 @@ export function createConnectionActivityInboxTransport(connection: ConnectionHan
   return {
     snapshot: () => connection.rpc.call(ACTIVITY_INBOX_RPC_CHANNEL, 'snapshot', {}),
     mutate: mutation => connection.rpc.call(ACTIVITY_INBOX_RPC_CHANNEL, 'mutate', mutation),
+    petControl: command => connection.rpc.call(ACTIVITY_INBOX_RPC_CHANNEL, 'pet-control', command),
   }
 }
 
@@ -50,6 +55,7 @@ export function createRemoteActivityInboxTransport(remote: ActivityInboxRemoteNa
   return {
     snapshot: () => remote.snapshot(),
     mutate: mutation => remote.mutate(mutation),
+    petControl: command => remote.petControl(command),
   }
 }
 
@@ -118,6 +124,17 @@ export function createActivityInboxSource(
       try {
         const result = await transport.mutate(mutation)
         if (!result.ok) return { ok: false, message: `${result.error?.code ?? 'internal'}: ${result.error?.message ?? 'Activity Inbox mutation failed.'}` }
+        if (!isActivityInboxSnapshot(result.value)) return { ok: false, message: 'Host returned a malformed Activity Inbox snapshot.' }
+        publish({ server: result.value, loading: false })
+        return { ok: true }
+      } catch (error) {
+        return { ok: false, message: error instanceof Error ? error.message : String(error) }
+      }
+    },
+    async controlPet(command) {
+      try {
+        const result = await transport.petControl(command)
+        if (!result.ok) return { ok: false, message: `${result.error?.code ?? 'internal'}: ${result.error?.message ?? 'Desktop Pet command failed.'}` }
         if (!isActivityInboxSnapshot(result.value)) return { ok: false, message: 'Host returned a malformed Activity Inbox snapshot.' }
         publish({ server: result.value, loading: false })
         return { ok: true }
