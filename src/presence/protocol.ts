@@ -11,11 +11,23 @@ export interface PresenceCursor {
   revision: number
 }
 
+export interface DesktopPetHello {
+  appVersion: string
+  protocolVersion: 1
+  platform: 'darwin'
+  arch: 'arm64' | 'x64'
+}
+
 export type PresenceClientMessage =
   | {
       type: 'presence/auth'
       version: 1
       token: string
+    }
+  | {
+      type: 'presence/hello'
+      version: 1
+      client: DesktopPetHello
     }
   | {
       type: 'presence/subscribe'
@@ -24,6 +36,8 @@ export type PresenceClientMessage =
     }
 
 export type PresenceServerMessage =
+  | { type: 'presence/welcome'; version: 1; appVersion: string; protocolVersion: 1 }
+  | { type: 'presence/control'; version: 1; action: 'quit' }
   | { type: 'presence/snapshot'; version: 1; snapshot: ActivityPresenceSnapshot }
   | { type: 'presence/unchanged'; version: 1; cursor: PresenceCursor }
   | { type: 'presence/error'; version: 1; code: string; message: string }
@@ -50,6 +64,16 @@ export function isPresenceClientMessage(value: unknown): value is PresenceClient
       return typeof input.token === 'string'
         && input.token.length >= 32
         && input.token.length <= 256
+    case 'presence/hello': {
+      if (typeof input.client !== 'object' || input.client === null || Array.isArray(input.client)) return false
+      const client = input.client as Record<string, unknown>
+      return typeof client.appVersion === 'string'
+        && client.appVersion.length > 0
+        && client.appVersion.length <= 64
+        && client.protocolVersion === ACTIVITY_PRESENCE_PROTOCOL_VERSION
+        && client.platform === 'darwin'
+        && (client.arch === 'arm64' || client.arch === 'x64')
+    }
     case 'presence/subscribe':
       return input.cursor === undefined || isPresenceCursor(input.cursor)
     default:
@@ -62,6 +86,13 @@ export function isPresenceServerMessage(value: unknown): value is PresenceServer
   const input = value as Record<string, unknown>
   if (input.version !== ACTIVITY_PRESENCE_PROTOCOL_VERSION) return false
   switch (input.type) {
+    case 'presence/welcome':
+      return typeof input.appVersion === 'string'
+        && input.appVersion.length > 0
+        && input.appVersion.length <= 64
+        && input.protocolVersion === ACTIVITY_PRESENCE_PROTOCOL_VERSION
+    case 'presence/control':
+      return input.action === 'quit'
     case 'presence/snapshot':
       return isActivityPresenceSnapshot(input.snapshot)
     case 'presence/unchanged':

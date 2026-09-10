@@ -23,7 +23,9 @@ export interface DesktopPetLifecycleSnapshot {
   phase: DesktopPetLifecyclePhase
   available: boolean
   managed: boolean
+  connected: boolean
   autoStart: boolean
+  appVersion?: string
   message?: string
 }
 
@@ -228,7 +230,13 @@ export function isDesktopPetLifecycleSnapshot(value: unknown): value is DesktopP
     )
     && typeof input.available === 'boolean'
     && typeof input.managed === 'boolean'
+    && typeof input.connected === 'boolean'
     && typeof input.autoStart === 'boolean'
+    && (input.appVersion === undefined || (
+      typeof input.appVersion === 'string'
+      && input.appVersion.length > 0
+      && input.appVersion.length <= 64
+    ))
     && (input.message === undefined || (
       typeof input.message === 'string'
       && input.message.length <= 240

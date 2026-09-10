@@ -43,6 +43,12 @@ descriptor through the child environment; the browser cannot choose a binary,
 arguments, environment variables, or process ID. Automatic startup remains
 opt-in.
 
+Release builds complete an authenticated app/protocol version handshake before
+subscribing to Presence. The single-instance plugin restores an existing
+window on duplicate launch. `npm run desktop:artifact` at the repository root
+creates the architecture-specific npm package and full-bundle checksum
+manifest consumed by the Host's atomic installer.
+
 Transparent macOS windows require Tauri's `macOSPrivateApi`; this build is
 intended for direct signed distribution and is not eligible for the Mac App
 Store.

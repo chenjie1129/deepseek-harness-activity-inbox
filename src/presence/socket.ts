@@ -9,6 +9,7 @@ import {
 import {
   isPresenceClientMessage,
   synchronizePresence,
+  type DesktopPetHello,
   type PresenceServerMessage,
 } from './protocol.js'
 import type {
@@ -35,11 +36,15 @@ export interface PresenceSocketOptions {
   maxClients?: number
   maxInboundFrameBytes?: number
   maxOutboundFrameBytes?: number
+  expectedClientVersion?: string
+  onClientHello?: (client: DesktopPetHello) => void
+  onClientDisconnect?: (client: DesktopPetHello) => void
 }
 
 export interface PresenceSocketBridge {
   readonly socketPath: string
   readonly credential: PresenceCredentialDescriptor
+  control(action: 'quit'): boolean
   close(): Promise<void>
 }
 
@@ -47,7 +52,9 @@ interface ClientState {
   socket: Socket
   buffer: string
   authenticated: boolean
+  greeted: boolean
   subscribed: boolean
+  hello?: DesktopPetHello
   instanceId?: string
   revision?: number
 }
@@ -240,6 +247,7 @@ export async function createPresenceSocketBridge(
       socket,
       buffer: '',
       authenticated: false,
+      greeted: false,
       subscribed: false,
     }
     clients.add(client)
@@ -292,7 +300,32 @@ export async function createPresenceSocketBridge(
         } else if (raw.type === 'presence/auth') {
           closeWith('bad-state', 'Presence connection is already authenticated.')
           return
-        } else {
+        } else if (!client.greeted) {
+          if (raw.type !== 'presence/hello') {
+            closeWith('hello-required', 'Complete the desktop version handshake before subscribing.')
+            return
+          }
+          if (options.expectedClientVersion !== undefined
+            && raw.client.appVersion !== options.expectedClientVersion) {
+            closeWith(
+              'incompatible-client',
+              `Activity Pet ${options.expectedClientVersion} is required.`,
+            )
+            return
+          }
+          client.greeted = true
+          client.hello = raw.client
+          options.onClientHello?.(raw.client)
+          if (!writeMessage(client, {
+            type: 'presence/welcome',
+            version: ACTIVITY_PRESENCE_PROTOCOL_VERSION,
+            appVersion: options.expectedClientVersion ?? raw.client.appVersion,
+            protocolVersion: ACTIVITY_PRESENCE_PROTOCOL_VERSION,
+          }, maxOutboundFrameBytes)) {
+            closeWith('frame-too-large', 'Presence welcome exceeds the configured frame limit.')
+            return
+          }
+        } else if (raw.type === 'presence/subscribe') {
           const snapshot = options.source.presence()
           const response = synchronizePresence(snapshot, raw.cursor)
           if (!writeMessage(client, response, maxOutboundFrameBytes)) {
@@ -302,6 +335,9 @@ export async function createPresenceSocketBridge(
           client.subscribed = true
           client.instanceId = snapshot.instanceId
           client.revision = snapshot.revision
+        } else {
+          closeWith('bad-state', 'Presence handshake is already complete.')
+          return
         }
         newline = client.buffer.indexOf('\n')
       }
@@ -310,6 +346,7 @@ export async function createPresenceSocketBridge(
     socket.on('close', () => {
       clearTimeout(authTimer)
       clients.delete(client)
+      if (client.hello !== undefined) options.onClientDisconnect?.(client.hello)
     })
   })
   server.maxConnections = maxClients
@@ -347,6 +384,18 @@ export async function createPresenceSocketBridge(
   return {
     socketPath,
     credential: options.credentials.descriptor,
+    control(action: 'quit'): boolean {
+      let sent = false
+      for (const client of clients) {
+        if (!client.authenticated || !client.greeted) continue
+        sent = writeMessage(client, {
+          type: 'presence/control',
+          version: ACTIVITY_PRESENCE_PROTOCOL_VERSION,
+          action,
+        }, maxOutboundFrameBytes) || sent
+      }
+      return sent
+    },
     async close(): Promise<void> {
       if (closed) return
       closed = true

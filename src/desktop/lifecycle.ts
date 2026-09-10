@@ -8,6 +8,11 @@ import {
   type DesktopPetLifecyclePhase,
   type DesktopPetLifecycleSnapshot,
 } from '../contracts.js'
+import {
+  installDesktopPetArtifact,
+  rollbackDesktopPetArtifact,
+} from './artifact.js'
+import type { DesktopPetHello } from '../presence/protocol.js'
 
 type SpawnProcess = (
   executable: string,
@@ -23,6 +28,9 @@ export interface DesktopPetLifecycleOptions {
   autoStart: boolean
   stopOnHostExit: boolean
   executablePath?: string
+  artifactRoots?: readonly string[]
+  artifactRequired?: boolean
+  installRoot?: string
   searchRoots: readonly string[]
   environment: NodeJS.ProcessEnv
   platform?: NodeJS.Platform
@@ -65,6 +73,10 @@ export class DesktopPetLifecycle {
   private readonly spawnProcess: SpawnProcess
   private executablePath?: string
   private child: ChildProcess | undefined
+  private rollbackAvailable = false
+  private connectedClients = 0
+  private appVersion: string | undefined
+  private externalControl: ((action: 'quit') => boolean) | undefined
   private revision = 0
   private phase: DesktopPetLifecyclePhase
   private message: string | undefined
@@ -87,9 +99,11 @@ export class DesktopPetLifecycle {
       version: DESKTOP_PET_LIFECYCLE_VERSION,
       revision: this.revision,
       phase: this.phase,
-      available: this.executablePath !== undefined,
-      managed: this.child !== undefined,
+      available: this.executablePath !== undefined || this.connectedClients > 0,
+      managed: this.child !== undefined || this.connectedClients > 0,
+      connected: this.connectedClients > 0,
       autoStart: this.options.autoStart,
+      ...this.appVersion === undefined ? {} : { appVersion: this.appVersion },
       ...this.message === undefined ? {} : { message: this.message },
     }
   }
@@ -97,6 +111,34 @@ export class DesktopPetLifecycle {
   async initialize(): Promise<DesktopPetLifecycleSnapshot> {
     if (!this.options.enabled || (this.options.platform ?? process.platform) !== 'darwin') {
       this.transition('unsupported')
+      return this.snapshot()
+    }
+    let artifactFailure: unknown
+    if (this.options.installRoot !== undefined) {
+      for (const artifactRoot of this.options.artifactRoots ?? []) {
+        try {
+          const installed = await installDesktopPetArtifact({
+            artifactRoot,
+            installRoot: this.options.installRoot,
+            platform: this.options.platform ?? process.platform,
+            arch: process.arch,
+          })
+          this.executablePath = installed.executablePath
+          this.rollbackAvailable = installed.rolledBackFrom !== undefined
+          this.transition('stopped')
+          if (this.options.autoStart) return this.control({ action: 'start' })
+          return this.snapshot()
+        } catch (error) {
+          artifactFailure = error
+          // Fall back to an explicitly configured or development executable.
+        }
+      }
+    }
+    if (this.options.artifactRequired && artifactFailure !== undefined) {
+      this.transition(
+        'error',
+        `Desktop Pet artifact rejected: ${artifactFailure instanceof Error ? artifactFailure.message : String(artifactFailure)}`,
+      )
       return this.snapshot()
     }
     for (const candidate of executableCandidates(this.options)) {
@@ -112,6 +154,26 @@ export class DesktopPetLifecycle {
     }
     this.transition('unavailable', 'Build Activity Pet or configure desktopPetExecutablePath.')
     return this.snapshot()
+  }
+
+  setExternalControl(control: (action: 'quit') => boolean): void {
+    this.externalControl = control
+  }
+
+  noteClientConnected(client: DesktopPetHello): void {
+    this.connectedClients += 1
+    this.appVersion = client.appVersion
+    this.transition('running')
+  }
+
+  noteClientDisconnected(client: DesktopPetHello): void {
+    this.connectedClients = Math.max(0, this.connectedClients - 1)
+    if (this.connectedClients === 0) {
+      this.appVersion = undefined
+      if (this.child === undefined) this.transition('stopped')
+    } else {
+      this.appVersion = client.appVersion
+    }
   }
 
   async control(command: DesktopPetLifecycleCommand): Promise<DesktopPetLifecycleSnapshot> {
@@ -130,7 +192,11 @@ export class DesktopPetLifecycle {
     if (this.options.stopOnHostExit) await this.stop()
   }
 
-  private async start(): Promise<DesktopPetLifecycleSnapshot> {
+  private async start(allowRollback = true): Promise<DesktopPetLifecycleSnapshot> {
+    if (this.connectedClients > 0) {
+      this.transition('running')
+      return this.snapshot()
+    }
     if (this.executablePath === undefined) {
       this.transition('unavailable', 'Activity Pet executable is unavailable.')
       return this.snapshot()
@@ -146,7 +212,7 @@ export class DesktopPetLifecycle {
         stdio: 'ignore',
       })
       this.child = child
-      return await new Promise(resolveStart => {
+      const result = await new Promise<DesktopPetLifecycleSnapshot>(resolveStart => {
         let settled = false
         const finish = (): void => {
           if (settled) return
@@ -174,7 +240,9 @@ export class DesktopPetLifecycle {
         child.once('exit', (code, signal) => {
           if (this.child === child) {
             this.child = undefined
-            if (this.phase === 'stopping' || code === 0 || signal === 'SIGTERM') {
+            if (this.connectedClients > 0) {
+              this.transition('running')
+            } else if (this.phase === 'stopping' || code === 0 || signal === 'SIGTERM') {
               this.transition('stopped')
             } else {
               this.transition('error', `Activity Pet exited unexpectedly (${signal ?? code ?? 'unknown'}).`)
@@ -183,6 +251,16 @@ export class DesktopPetLifecycle {
           finish()
         })
       })
+      if (result.phase === 'error'
+        && allowRollback
+        && this.rollbackAvailable
+        && this.options.installRoot !== undefined
+        && await rollbackDesktopPetArtifact(this.options.installRoot)) {
+        this.rollbackAvailable = false
+        this.transition('stopped', 'Activity Pet upgrade failed; restored the previous release.')
+        return this.start(false)
+      }
+      return result
     } catch (error) {
       this.child = undefined
       this.transition('error', `Activity Pet failed to start: ${String(error)}`)
@@ -194,6 +272,13 @@ export class DesktopPetLifecycle {
     const child = this.child
     if (child === undefined || child.exitCode !== null || child.killed) {
       this.child = undefined
+      if (this.connectedClients > 0) {
+        this.transition('stopping')
+        if (this.externalControl?.('quit') !== true) {
+          this.transition('error', 'Connected Activity Pet did not accept the stop request.')
+        }
+        return this.snapshot()
+      }
       this.transition('stopped')
       return this.snapshot()
     }

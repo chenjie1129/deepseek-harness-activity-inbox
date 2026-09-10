@@ -17,6 +17,7 @@ use std::{
 use tauri::{AppHandle, Emitter};
 
 const PROTOCOL_VERSION: u8 = 1;
+const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 const DEFAULT_KEYCHAIN_SERVICE: &str = "com.deepseek-harness.activity-inbox.presence";
 const MAX_FRAME_BYTES: usize = 8 * 1024 * 1024;
 const MAX_ACTIVITIES: usize = 10_000;
@@ -184,6 +185,16 @@ pub struct PresenceCursor {
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type")]
 enum ServerMessage {
+    #[serde(rename = "presence/welcome")]
+    Welcome {
+        version: u8,
+        #[serde(rename = "appVersion")]
+        app_version: String,
+        #[serde(rename = "protocolVersion")]
+        protocol_version: u8,
+    },
+    #[serde(rename = "presence/control")]
+    Control { version: u8, action: String },
     #[serde(rename = "presence/snapshot")]
     Snapshot {
         version: u8,
@@ -317,6 +328,24 @@ fn subscribe_message(cursor: Option<&PresenceCursor>) -> serde_json::Value {
     }
 }
 
+fn hello_message() -> serde_json::Value {
+    let arch = match std::env::consts::ARCH {
+        "aarch64" => "arm64",
+        "x86_64" => "x64",
+        other => other,
+    };
+    serde_json::json!({
+        "type": "presence/hello",
+        "version": PROTOCOL_VERSION,
+        "client": {
+            "appVersion": APP_VERSION,
+            "protocolVersion": PROTOCOL_VERSION,
+            "platform": "darwin",
+            "arch": arch,
+        },
+    })
+}
+
 fn read_frame(reader: &mut BufReader<UnixStream>) -> io::Result<Option<Vec<u8>>> {
     let mut frame = Vec::new();
     loop {
@@ -392,10 +421,12 @@ fn connect_once(
             "token": token,
         }),
     )?;
+    write_client_message(&mut stream, hello_message())?;
     write_client_message(&mut stream, subscribe_message(cursor.as_ref()))?;
     drop(token);
 
     let mut reader = BufReader::new(stream);
+    let mut welcomed = false;
     while !runtime.shutdown.load(Ordering::Acquire) {
         let frame = match read_frame(&mut reader) {
             Ok(Some(frame)) => frame,
@@ -411,7 +442,30 @@ fn connect_once(
         let message: ServerMessage = serde_json::from_slice(&frame)
             .map_err(|_| "Activity Host sent malformed Presence data.".to_string())?;
         match message {
+            ServerMessage::Welcome {
+                version,
+                app_version,
+                protocol_version,
+            } => {
+                if version != PROTOCOL_VERSION
+                    || protocol_version != PROTOCOL_VERSION
+                    || app_version != APP_VERSION
+                {
+                    return Err("Activity Host and Pet versions are incompatible.".to_string());
+                }
+                welcomed = true;
+            }
+            ServerMessage::Control { version, action } => {
+                if version != PROTOCOL_VERSION || !welcomed || action != "quit" {
+                    return Err("Activity Host sent an invalid lifecycle command.".to_string());
+                }
+                app.exit(0);
+                return Ok(());
+            }
             ServerMessage::Snapshot { version, snapshot } => {
+                if !welcomed {
+                    return Err("Activity Host skipped the desktop version handshake.".to_string());
+                }
                 if version != PROTOCOL_VERSION {
                     return Err("Activity Host uses an unsupported protocol version.".to_string());
                 }
@@ -432,6 +486,9 @@ fn connect_once(
                 version,
                 cursor: unchanged,
             } => {
+                if !welcomed {
+                    return Err("Activity Host skipped the desktop version handshake.".to_string());
+                }
                 if version != PROTOCOL_VERSION || cursor.as_ref() != Some(&unchanged) {
                     return Err("Activity Host sent an invalid reconnect cursor.".to_string());
                 }
@@ -604,5 +661,17 @@ mod tests {
             subscribe_message(Some(&cursor))["cursor"]["revision"],
             serde_json::json!(4)
         );
+    }
+
+    #[test]
+    fn announces_the_build_and_protocol_versions() {
+        let hello = hello_message();
+        assert_eq!(
+            hello["client"]["appVersion"],
+            serde_json::json!(APP_VERSION)
+        );
+        assert_eq!(hello["client"]["protocolVersion"], serde_json::json!(1));
+        assert_eq!(hello["client"]["platform"], serde_json::json!("darwin"));
+        assert_eq!(hello["client"]["arch"], serde_json::json!("arm64"));
     }
 }

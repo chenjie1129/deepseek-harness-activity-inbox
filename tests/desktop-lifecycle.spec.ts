@@ -83,6 +83,21 @@ describe('Desktop Pet lifecycle', () => {
     expect(spawnProcess).not.toHaveBeenCalled()
   })
 
+  it('fails closed when an explicitly required artifact is invalid', async () => {
+    const { manager, spawnProcess } = lifecycle({
+      artifactRoots: ['/missing/platform-package'],
+      artifactRequired: true,
+      installRoot: '/tmp/activity-pet-required-artifact',
+    })
+
+    await expect(manager.initialize()).resolves.toMatchObject({
+      phase: 'error',
+      available: false,
+      managed: false,
+    })
+    expect(spawnProcess).not.toHaveBeenCalled()
+  })
+
   it('auto-starts only after executable discovery succeeds', async () => {
     const { manager } = lifecycle({ autoStart: true })
 
@@ -92,5 +107,30 @@ describe('Desktop Pet lifecycle', () => {
       managed: true,
       autoStart: true,
     })
+  })
+
+  it('adopts a compatible connected instance without spawning a duplicate', async () => {
+    const { manager, spawnProcess } = lifecycle()
+    const control = vi.fn(() => true)
+    await manager.initialize()
+    manager.setExternalControl(control)
+    manager.noteClientConnected({
+      appVersion: '0.1.0',
+      protocolVersion: 1,
+      platform: 'darwin',
+      arch: 'arm64',
+    })
+
+    await expect(manager.control({ action: 'start' })).resolves.toMatchObject({
+      phase: 'running',
+      connected: true,
+      managed: true,
+      appVersion: '0.1.0',
+    })
+    expect(spawnProcess).not.toHaveBeenCalled()
+    await expect(manager.control({ action: 'stop' })).resolves.toMatchObject({
+      phase: 'stopping',
+    })
+    expect(control).toHaveBeenCalledWith('quit')
   })
 })

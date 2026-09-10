@@ -107,6 +107,7 @@ async function socketFixture(source = new TestSource()): Promise<{
     source,
     authTimeoutMs: 500,
     maxInboundFrameBytes: 1_024,
+    expectedClientVersion: '0.1.0',
   })
   bridges.push(bridge)
   return { bridge, source, root }
@@ -137,9 +138,24 @@ describe('Presence Unix socket bridge', () => {
     const reader = new LineReader(socket)
     send(socket, { type: 'presence/auth', version: 1, token: TOKEN })
     send(socket, {
+      type: 'presence/hello',
+      version: 1,
+      client: {
+        appVersion: '0.1.0',
+        protocolVersion: 1,
+        platform: 'darwin',
+        arch: 'arm64',
+      },
+    })
+    send(socket, {
       type: 'presence/subscribe',
       version: 1,
       cursor: { instanceId: 'host-test', revision: 0 },
+    })
+    await expect(reader.next()).resolves.toMatchObject({
+      type: 'presence/welcome',
+      appVersion: '0.1.0',
+      protocolVersion: 1,
     })
     await expect(reader.next()).resolves.toMatchObject({
       type: 'presence/unchanged',
@@ -150,6 +166,32 @@ describe('Presence Unix socket bridge', () => {
     await expect(reader.next()).resolves.toMatchObject({
       type: 'presence/snapshot',
       snapshot: { instanceId: 'host-test', revision: 1 },
+    })
+    expect(bridge.control('quit')).toBe(true)
+    await expect(reader.next()).resolves.toMatchObject({
+      type: 'presence/control',
+      action: 'quit',
+    })
+  })
+
+  it('rejects a desktop build that does not match the Host version contract', async () => {
+    const { bridge } = await socketFixture()
+    const socket = await connect(bridge.socketPath)
+    const reader = new LineReader(socket)
+    send(socket, { type: 'presence/auth', version: 1, token: TOKEN })
+    send(socket, {
+      type: 'presence/hello',
+      version: 1,
+      client: {
+        appVersion: '9.9.9',
+        protocolVersion: 1,
+        platform: 'darwin',
+        arch: 'arm64',
+      },
+    })
+    await expect(reader.next()).resolves.toMatchObject({
+      type: 'presence/error',
+      code: 'incompatible-client',
     })
   })
 

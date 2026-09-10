@@ -3,7 +3,7 @@
 ## Status
 
 - Decision: approved for implementation in the Activity Inbox plugin.
-- Scope: PR1 through PR3 plus desktop milestones D1 through D4.
+- Scope: PR1 through PR3 plus desktop milestones D1 through D5.
 - Product boundary: a deterministic ambient view of Harness activity, not an
   autonomous companion, game, or AI-generated summary.
 
@@ -339,6 +339,22 @@ when it still points to the current instance.
   disposal. Never kill an unowned process by name.
 - Keep automatic startup opt-in through `desktopPetAutoStart`.
 
+### D5: Verified distribution and process adoption
+
+- Package each native build as an OS/architecture-specific npm artifact with a
+  versioned manifest and SHA-256 digest for every file in the `.app` bundle.
+- Stage verified artifacts under `$DSH_HOME/activity-inbox/desktop-pet`, then
+  atomically switch `current` while retaining `previous` for rollback.
+- Roll back and retry the previous release once when a newly activated process
+  cannot start. Never weaken manifest or hash checks after failure.
+- Require an authenticated `presence/hello` and `presence/welcome` handshake
+  before subscription. Host and Pet must agree on app and protocol versions.
+- Use the Tauri single-instance plugin so a second launch restores the existing
+  window instead of creating another renderer.
+- Treat an authenticated Pet that reconnects after Host restart as managed
+  runtime state. The Host may send only the bounded `quit` lifecycle command
+  over the already authenticated Presence socket.
+
 ## Verification Contract
 
 The implementation is complete only when:
@@ -356,6 +372,9 @@ The implementation is complete only when:
    a live Host snapshot, and exposes recovery controls in the menu bar.
 9. lifecycle discovery, unavailable state, auto-start, start, stop, and
    transport validation have deterministic tests.
+10. full-bundle tampering, platform mismatch, incompatible handshakes,
+    duplicate launches, atomic activation, and rollback are rejected or
+    recovered according to the D5 evidence contract.
 
 ## Future Split Trigger
 

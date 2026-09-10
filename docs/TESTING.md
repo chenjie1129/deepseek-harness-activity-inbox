@@ -54,5 +54,8 @@ Before a release, additionally verify the exact generated `.tgz`:
 12. verify lifecycle discovery and unavailable states, start and stop the Pet
     from the Activity Inbox, and confirm Host disposal terminates only its
     managed child.
+13. generate the platform artifact, verify every manifest digest, exercise
+    current/previous atomic switching and rollback, reject an incompatible
+    handshake, and confirm a second launch does not create another window.
 
 Passing deterministic tests proves the inbox mechanism. It does not prove third-party provider availability, natural-language quality, or multi-user behavior.

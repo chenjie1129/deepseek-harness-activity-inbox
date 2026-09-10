@@ -288,6 +288,9 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            show_main_window(app);
+        }))
         .plugin(
             tauri_plugin_window_state::Builder::default()
                 .with_state_flags(StateFlags::POSITION)

@@ -74,6 +74,15 @@ an executable, arguments, environment variables, or arbitrary process IDs.
 Automatic launch is opt-in, and orderly Host disposal stops only the process
 that Host instance created.
 
+D5 adds a local release channel around that controller. Platform packages are
+selected by exact OS and architecture, and a manifest covers every file in the
+native app bundle. The Host verifies the source, stages it in an owner-only
+directory, verifies the staged copy, and atomically changes a `current`
+symlink. The prior target remains available as `previous` for one bounded
+rollback attempt. An authenticated app/protocol handshake gates Presence
+subscription, while Tauri single-instance handling and connection adoption
+prevent duplicate desktop renderers across Host restarts.
+
 ## Re-arm semantics
 
 Review and archive watermarks are event sequences. Snooze carries the sequence it suppressed. If a later terminal event has a larger sequence, the item becomes visible again automatically. Stale actions must match the current terminal sequence or the Host rejects them.

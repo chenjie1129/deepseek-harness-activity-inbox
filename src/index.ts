@@ -32,6 +32,8 @@ import { createPresenceSocketBridge } from './presence/socket.js'
 import { ActivityInboxStore } from './store.js'
 
 export * from './contracts.js'
+export * from './desktop/artifact.js'
+export * from './desktop/lifecycle.js'
 export * from './presence/host.js'
 export * from './presence/projector.js'
 export * from './presence/protocol.js'
@@ -56,6 +58,8 @@ export interface Config {
   desktopPetStopOnHostExit?: boolean
   desktopPetExecutablePath?: string
   desktopPetWebUrl?: string
+  desktopPetExpectedVersion?: string
+  desktopPetArtifactPath?: string
 }
 
 export const Config: z<Config> = z.object({
@@ -74,6 +78,8 @@ export const Config: z<Config> = z.object({
   desktopPetStopOnHostExit: z.boolean().default(true),
   desktopPetExecutablePath: z.string(),
   desktopPetWebUrl: z.string().default('http://127.0.0.1:3080/'),
+  desktopPetExpectedVersion: z.string().default('0.1.0'),
+  desktopPetArtifactPath: z.string(),
 })
 
 function defaultDataRoot(): string {
@@ -180,6 +186,12 @@ export function apply(ctx: Context, config: Config = {}): void {
     ? defaultPresenceSocketPath()
     : resolve(config.presenceSocketPath)
   const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+  const desktopSearchRoots = [
+    packageRoot,
+    process.cwd(),
+    resolve(process.cwd(), '..', 'deepseek-harness-activity-inbox'),
+  ]
+  const platformPackage = `@chenjie1129/dsh-activity-pet-${process.platform}-${process.arch}`
   const store = new ActivityInboxStore(statePath)
   const abort = new AbortController()
   const initialized = store.initialize()
@@ -227,29 +239,6 @@ export function apply(ctx: Context, config: Config = {}): void {
     if (!abort.signal.aborted) ctx.logger.error(`activity-inbox: initialization failed: ${String(error)}`)
   })
 
-  const presenceBridge = presenceSocketEnabled
-    ? initialized.then(() => createPresenceSocketBridge({
-        socketPath: presenceSocketPath,
-        source: store,
-        credentials: new MacOSKeychainCredentialProvider({
-          socketPath: presenceSocketPath,
-          ...config.presenceKeychainService === undefined
-            ? { service: DEFAULT_PRESENCE_KEYCHAIN_SERVICE }
-            : { service: config.presenceKeychainService },
-          ...config.presenceKeychainAccount === undefined
-            ? {}
-            : { account: config.presenceKeychainAccount },
-        }),
-        authTimeoutMs: config.presenceAuthTimeoutMs ?? 5_000,
-        maxClients: config.presenceMaxClients ?? 8,
-        maxInboundFrameBytes: maxPayloadBytes,
-      }))
-      .catch(error => {
-        ctx.logger.error(`activity-inbox: Presence socket failed: ${String(error)}`)
-        return undefined
-      })
-    : Promise.resolve(undefined)
-
   const desktopPetEnvironment: NodeJS.ProcessEnv = {
     ...process.env,
     DSH_HOME: defaultDataRoot(),
@@ -268,14 +257,58 @@ export function apply(ctx: Context, config: Config = {}): void {
     ...config.desktopPetExecutablePath === undefined
       ? {}
       : { executablePath: config.desktopPetExecutablePath },
-    searchRoots: [
-      packageRoot,
-      process.cwd(),
-      resolve(process.cwd(), '..', 'deepseek-harness-activity-inbox'),
+    artifactRoots: [
+      ...process.env.DSH_ACTIVITY_PET_ARTIFACT === undefined
+        ? []
+        : [resolve(process.env.DSH_ACTIVITY_PET_ARTIFACT)],
+      ...config.desktopPetArtifactPath === undefined
+        ? []
+        : [resolve(config.desktopPetArtifactPath)],
+      ...desktopSearchRoots.flatMap(root => [
+        join(root, 'node_modules', platformPackage),
+        join(root, 'desktop', 'artifacts', `${process.platform}-${process.arch}`),
+      ]),
     ],
+    artifactRequired:
+      config.desktopPetArtifactPath !== undefined
+      || process.env.DSH_ACTIVITY_PET_ARTIFACT !== undefined,
+    installRoot: join(defaultDataRoot(), 'activity-inbox', 'desktop-pet'),
+    searchRoots: desktopSearchRoots,
     environment: desktopPetEnvironment,
   })
-  const desktopPetReady = presenceBridge.then(() => desktopPet.initialize())
+
+  const presenceBridge = presenceSocketEnabled
+    ? initialized.then(() => createPresenceSocketBridge({
+        socketPath: presenceSocketPath,
+        source: store,
+        credentials: new MacOSKeychainCredentialProvider({
+          socketPath: presenceSocketPath,
+          ...config.presenceKeychainService === undefined
+            ? { service: DEFAULT_PRESENCE_KEYCHAIN_SERVICE }
+            : { service: config.presenceKeychainService },
+          ...config.presenceKeychainAccount === undefined
+            ? {}
+            : { account: config.presenceKeychainAccount },
+        }),
+        authTimeoutMs: config.presenceAuthTimeoutMs ?? 5_000,
+        maxClients: config.presenceMaxClients ?? 8,
+        maxInboundFrameBytes: maxPayloadBytes,
+        expectedClientVersion: config.desktopPetExpectedVersion ?? '0.1.0',
+        onClientHello: client => { desktopPet.noteClientConnected(client) },
+        onClientDisconnect: client => { desktopPet.noteClientDisconnected(client) },
+      }))
+      .catch(error => {
+        ctx.logger.error(`activity-inbox: Presence socket failed: ${String(error)}`)
+        return undefined
+      })
+    : Promise.resolve(undefined)
+
+  const desktopPetReady = presenceBridge.then(bridge => {
+    if (bridge !== undefined) {
+      desktopPet.setExternalControl(action => bridge.control(action))
+    }
+    return desktopPet.initialize()
+  })
 
   const remote = installRemote(
     ctx,

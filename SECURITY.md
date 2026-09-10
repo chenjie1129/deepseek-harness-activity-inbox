@@ -37,6 +37,11 @@ Please report suspected vulnerabilities privately through GitHub's security-advi
 - Browser lifecycle requests are restricted to `start`, `stop`, and `restart`.
   Executable discovery and environment construction stay in the Host, and the
   Host terminates only the child process it created.
+- Platform packages are accepted only when OS, architecture, manifest schema,
+  executable digest, and every `.app` file digest match. Activation uses an
+  owner-only install directory and atomic symlink replacement.
+- Desktop clients must complete an authenticated app/protocol version handshake
+  before receiving Presence data or lifecycle commands.
 
 The local Presence token authenticates only the Unix socket and does not add
 authentication to Harness itself. Keep the Host on its supported
